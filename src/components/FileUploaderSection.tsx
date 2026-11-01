@@ -766,13 +766,13 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
           className={`rounded-2xl p-5 border transition-all relative overflow-hidden ${
             originalAudioBuffer
               ? 'bg-slate-950/70 border-emerald-500/40'
-              : 'bg-slate-950/70 border-purple-500/30 hover:border-purple-500/50'
+              : 'bg-slate-950/70 border-[#099767]/30 hover:border-[#099767]/50'
           }`}
         >
           {/* Card Top: Mode Switcher */}
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <div className="w-10 h-10 rounded-xl bg-[#099767]/10 border border-[#099767]/20 flex items-center justify-center text-[#34d399]">
                 {audioSourceTab === 'video_to_wav' ? <Film className="w-5 h-5" /> : <Music className="w-5 h-5" />}
               </div>
               <div className="flex items-center bg-slate-900 border border-slate-800 p-0.5 rounded-lg text-[11px]">
@@ -781,7 +781,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                   onClick={() => setAudioSourceTab('video_to_wav')}
                   className={`px-2 py-1 rounded-md transition font-medium cursor-pointer ${
                     audioSourceTab === 'video_to_wav'
-                      ? 'bg-purple-600 text-white shadow'
+                      ? 'bg-[#099767] text-white shadow'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -792,7 +792,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                   onClick={() => setAudioSourceTab('direct_audio')}
                   className={`px-2 py-1 rounded-md transition font-medium cursor-pointer ${
                     audioSourceTab === 'direct_audio'
-                      ? 'bg-purple-600 text-white shadow'
+                      ? 'bg-[#099767] text-white shadow'
                       : 'text-slate-400 hover:text-slate-200'
                   }`}
                 >
@@ -829,7 +829,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
               {/* Conversion progress bar */}
               {isConvertingVideo && (
                 <div className="mb-3 space-y-1.5">
-                  <div className="flex items-center justify-between text-[11px] text-purple-300">
+                  <div className="flex items-center justify-between text-[11px] text-[#34d399]">
                     <span className="flex items-center gap-1.5">
                       <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       <span>{conversionProgress}</span>
@@ -838,7 +838,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                   </div>
                   <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300 rounded-full"
+                      className="h-full bg-gradient-to-r from-[#099767] to-[#10b981] transition-all duration-300 rounded-full"
                       style={{ width: `${Math.max(conversionPercent, 10)}%` }}
                     />
                   </div>
@@ -851,7 +851,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                   type="button"
                   disabled={isConvertingVideo}
                   onClick={() => videoInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-600/20 disabled:opacity-50"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-[#099767]/20 disabled:opacity-50"
                 >
                   {isConvertingVideo ? (
                     <>
@@ -883,10 +883,10 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                     type="button"
                     disabled={isTranscribing}
                     onClick={() => handleTranscribeAudio()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-600/20 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#099767] to-[#0ba873] hover:from-[#0ba873] hover:to-[#077d54] text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-[#099767]/20 disabled:opacity-50"
                     title="استخراج خودکار دیالوگ‌ها و زمان‌بندی دقیق از روی همین صوت"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-100" />
                     <span>استخراج زمان‌بندی دیالوگ‌ها</span>
                   </button>
                 )}
@@ -907,7 +907,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                 <button
                   type="button"
                   onClick={() => audioInputRef.current?.click()}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-600/20"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-[#099767]/20"
                 >
                   <Upload className="w-3.5 h-3.5" />
                   <span>{originalAudioBuffer ? 'تعویض فایل صوتی' : 'آپلود فایل صوتی'}</span>
@@ -918,10 +918,10 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                     type="button"
                     disabled={isTranscribing}
                     onClick={() => handleTranscribeAudio()}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-purple-600/20 disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#099767] to-[#0ba873] hover:from-[#0ba873] hover:to-[#077d54] text-white text-xs font-semibold transition cursor-pointer shadow-md shadow-[#099767]/20 disabled:opacity-50"
                     title="استخراج خودکار دیالوگ‌ها و زمان‌بندی دقیق از روی همین صوت"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-purple-200" />
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-100" />
                     <span>استخراج زمان‌بندی دیالوگ‌ها</span>
                   </button>
                 )}
@@ -931,12 +931,12 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
         </div>
       </div>
 
-      {/* بخش اختصاصی: استخراج خودکار دیالوگ‌ها و زمان‌بندی دقیق از روی صوت انگلیسی (هماهنگ‌سازی و رفع تداخل بر اساس صوت WAV) */}
-      <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-purple-950/40 via-slate-900 to-indigo-950/40 border border-purple-500/40 shadow-xl relative overflow-hidden">
+      {/* Dialogue extraction and precise timestamp alignment from English audio (VAD sync via WAV) */}
+      <div className="mt-6 p-5 sm:p-6 rounded-2xl bg-gradient-to-r from-[#064e3b]/30 via-slate-900 to-[#099767]/15 border border-[#099767]/40 shadow-xl relative overflow-hidden">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="space-y-2.5 max-w-3xl">
             <div className="flex items-center gap-2.5 flex-wrap">
-              <span className="p-2 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
+              <span className="p-2 rounded-xl bg-[#099767]/20 text-[#34d399] border border-[#099767]/30">
                 <Sparkles className="w-5 h-5" />
               </span>
               <h3 className="text-base sm:text-lg font-bold text-white">
@@ -955,10 +955,10 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <div className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs ${
                 originalAudioBuffer
-                  ? 'bg-purple-950/60 border-purple-500/40 text-purple-300'
+                  ? 'bg-[#064e3b]/40 border-[#099767]/40 text-[#34d399]'
                   : 'bg-slate-900/80 border-slate-800 text-slate-400'
               }`}>
-                <Music className="w-4 h-4 text-purple-400 shrink-0" />
+                <Music className="w-4 h-4 text-[#34d399] shrink-0" />
                 <span>
                   صوت مرجع (بخش ۳):{' '}
                   <strong className={originalAudioBuffer ? 'text-white' : 'text-slate-400'}>
@@ -991,16 +991,16 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                 type="button"
                 disabled={isTranscribing}
                 onClick={() => handleTranscribeAudio()}
-                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-purple-600 via-indigo-600 to-purple-600 hover:from-purple-500 hover:to-indigo-500 text-white text-xs sm:text-sm font-bold transition shadow-lg shadow-purple-600/30 cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-3 rounded-xl bg-gradient-to-r from-[#099767] via-[#0ba873] to-[#077d54] hover:from-[#0ba873] hover:to-[#099767] text-white text-xs sm:text-sm font-bold transition shadow-lg shadow-[#099767]/30 cursor-pointer disabled:opacity-50"
               >
                 {isTranscribing ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin text-purple-200" />
+                    <Loader2 className="w-4 h-4 animate-spin text-emerald-100" />
                     <span>در حال بررسی دیالوگ‌ها و رفع تداخل...</span>
                   </>
                 ) : (
                   <>
-                    <Wand2 className="w-4 h-4 text-purple-200" />
+                    <Wand2 className="w-4 h-4 text-emerald-100" />
                     <span>بررسی دیالوگ‌ها و بهینه‌سازی زمان‌بندی با صوت WAV</span>
                   </>
                 )}

@@ -4,16 +4,16 @@
  */
 
 export const PYTHON_WHISPER_SCRIPT = `# ==============================================================================
-# استخراج فوق دقیق زیرنویس انگلیسی با Whisper Large-v3 محلی (Local AI)
-# مخصوص استودیوی دوبله فیلم و ویدیوهای آموزشی
+# High-Precision Local English Subtitle Extraction via Whisper Large-v3
+# Specialized for Film Dubbing and Educational Video Courses
 # ==============================================================================
-# این اسکریپت با سرعت بالا و بالاترین دقت مدل Whisper Large-v3 را روی سیستم شما
-# (با کارت گرافیک NVIDIA یا پردازنده CPU) اجرا می‌کند و فایل SRT زمان‌بندی‌شده
-# کاملاً هماهنگ برای دوبله تولید می‌نماید.
+# Runs Whisper Large-v3 locally with GPU CUDA acceleration (or CPU fallback)
+# generating millisecond-accurate SRT subtitles synchronized for dubbing.
+
 #
-# پیش‌نیازها (فقط یک‌بار در ترمینال یا CMD اجرا کنید):
+# Requirements (run once in terminal):
 # pip install faster-whisper
-# (برای شتاب‌دهنده کارت گرافیک انویدیا):
+# (For NVIDIA CUDA acceleration):
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
 # ==============================================================================
 
@@ -23,7 +23,7 @@ import time
 from pathlib import Path
 
 def format_timestamp(seconds: float) -> str:
-    """تبدیل زمان به ثانیه به فرمت استاندارد زیرنویس SRT (00:00:00,000)"""
+    """Convert timestamp in seconds to standard SRT format (00:00:00,000)"""
     millis = int(round((seconds - int(seconds)) * 1000))
     if millis >= 1000:
         millis = 999
@@ -63,7 +63,7 @@ def extract_srt_whisper(
         print("   pip install faster-whisper\n")
         return None
 
-    # بررسی شتاب‌دهنده سخت‌افزاری (کارت گرافیک یا پردازنده)
+    # Check hardware acceleration (GPU CUDA vs CPU)
     device = "cpu"
     compute_type = "int8"
     try:
@@ -78,7 +78,7 @@ def extract_srt_whisper(
     except Exception:
         print("شتاب‌دهنده: پردازنده اصلی سیستم (CPU - int8 بهینه شده)")
 
-    print(f"\n⏳ در حال بارگذاری مدل {model_size} (بار اول ممکن است چند دقیقه طول بکشد)...")
+    print(f"\nدر حال بارگذاری مدل {model_size} (بار اول ممکن است چند دقیقه طول بکشد)...")
     start_time = time.time()
     
     try:
@@ -90,7 +90,7 @@ def extract_srt_whisper(
 
     print("در حال شنیدن و ترنسکرایب دیالوگ‌ها با زمان‌بندی دقیق میلی‌ثانیه‌ای...")
     
-    # فیلتر هوشمند VAD برای حذف سکوت‌ها و جلوگیری از تکرار در زمان موسیقی پس‌زمینه
+    # Intelligent VAD filter to filter silence and avoid hallucinations during background music
     segments, info = model.transcribe(
         str(input_path),
         language=language,
@@ -102,7 +102,7 @@ def extract_srt_whisper(
     )
 
     print(f"زبان شناسایی شده: {info.language.upper()} (دقت: {info.language_probability * 100:.1f}%)")
-    print(f"⏱️ طول فایل: {info.duration:.1f} ثانیه\n")
+    print(f"طول فایل: {info.duration:.1f} ثانیه\n")
 
     srt_lines = []
     segment_count = 0
@@ -113,19 +113,19 @@ def extract_srt_whisper(
             end_fmt = format_timestamp(seg.end)
             text = seg.text.strip()
             
-            # ثبت در فایل استاندارد SRT
+            # Write to standard SRT file
             srt_block = f"{idx}\\n{start_fmt} --> {end_fmt}\\n{text}\\n\\n"
             srt_file.write(srt_block)
             srt_lines.append(srt_block)
             segment_count += 1
             
-            # نمایش زنده در کنسول
+            # Live console progress preview
             print(f"  [{start_fmt} --> {end_fmt}] {text}")
 
     elapsed = time.time() - start_time
     print("\\n" + "=" * 65)
     print(f"استخراج با موفقیت تمام شد! تعداد دیالوگ‌ها: {segment_count}")
-    print(f"⏱️ زمان پردازش: {elapsed:.1f} ثانیه")
+    print(f"زمان پردازش: {elapsed:.1f} ثانیه")
     print(f"فایل خروجی SRT:")
     print(f"{output_srt_path.resolve()}")
     print("=" * 65)
@@ -133,7 +133,7 @@ def extract_srt_whisper(
     return output_srt_path
 
 # ==============================================================================
-# بخش تعاملی اجرای اسکریپت
+# Interactive CLI execution entry point
 # ==============================================================================
 if __name__ == "__main__":
     print("****************************************************************")

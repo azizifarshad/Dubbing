@@ -2,7 +2,7 @@ import { getAudioContext, audioBufferToWav } from './audioMixer';
 
 // CRITICAL: Global Set to keep utterance objects alive in memory.
 // Chromium's garbage collector destroys local SpeechSynthesisUtterance objects
-// mid-sentence after 5-8 seconds, which causes truncated sentences (e.g. cutting off at "پاند...").
+// mid-sentence after 5-8 seconds, which causes truncated sentences.
 const activeUtterancesKeepAlive = new Set<SpeechSynthesisUtterance>();
 
 let keepAliveInterval: any = null;
@@ -138,7 +138,7 @@ export function speakTextWithBrowser(
     (window as any).__lastSpeechUtterance = utterance;
 
     // Steady, consistent natural human speech: exactly 1.0 rate and 1.0 pitch.
-    // Eliminates all unnatural speed jumping and pitch-shifting (زیر و بم شدن).
+    // Eliminates unnatural speed jumping and pitch distortion.
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;

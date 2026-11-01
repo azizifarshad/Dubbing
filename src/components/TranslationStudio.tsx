@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SubtitleItem, TRANSLATION_STYLES, TranslationStyle, AVAILABLE_VOICES, GeminiVoiceId } from '../types/dubbing';
-import { Languages, Wand2, Sliders, RefreshCw, CheckCircle2, Clock, Sparkles, User, AlertCircle, Loader2, Cpu, Globe, Server, FileText, Copy, Check } from 'lucide-react';
+import { Languages, Wand2, Sliders, RefreshCw, CheckCircle2, Clock, Sparkles, User, AlertCircle, Loader2, Cpu, Globe, Server, FileText, Copy, Check, X } from 'lucide-react';
 import { translateOfflineLocally } from '../utils/localTranslator';
 
 interface TranslationStudioProps {
@@ -732,7 +732,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                 onClick={() => setShowPromptModal(false)}
                 className="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 text-sm transition"
               >
-                ✕
+                <X className="w-4 h-4" />
               </button>
             </div>
 

@@ -667,7 +667,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
         </div>
       </div>
 
-      {/* Overlap & Collision Alert Banner (اگر صدایی روی اونیکی صدا میره هم مشخص باشه) */}
+      {/* Overlap & Collision Alert Banner: Highlights overlapping audio segments */}
       {overlaps.length > 0 ? (
         <div className="mb-6 p-4 rounded-2xl bg-rose-950/40 border border-rose-500/50 text-rose-200 text-xs shadow-lg animate-in fade-in duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -880,7 +880,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                 ))}
               </div>
 
-              {/* TRACK 1: FIXED REFERENCE SUBTITLE TRACK (متن زیرنویس با زمان‌بندی ثابت) */}
+              {/* TRACK 1: FIXED REFERENCE SUBTITLE TRACK (Reference subtitle cues with fixed timing) */}
               <div className="relative h-14 mb-3 rounded-xl bg-slate-950/80 border border-slate-800/80 p-1 flex items-center">
                 {/* Track label */}
                 <div className="absolute right-2 top-1 text-[9px] font-bold text-slate-500 tracking-wider flex items-center gap-1 z-0 pointer-events-none">
@@ -927,7 +927,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                 })}
               </div>
 
-              {/* TRACK 2: INTERACTIVE DUBBED VOICE AUDIO TRACK (صوت دوبله فارسی با قابلیت عقب/جلو کردن) */}
+              {/* TRACK 2: INTERACTIVE DUBBED VOICE AUDIO TRACK (Persian dubbed audio segments with offset control) */}
               <div className="relative h-18 rounded-xl bg-slate-950/80 border border-slate-800/80 p-1 flex items-center">
                 {/* Track label */}
                 <div className="absolute right-2 top-1 text-[9px] font-bold text-slate-500 tracking-wider flex items-center gap-1 z-0 pointer-events-none">

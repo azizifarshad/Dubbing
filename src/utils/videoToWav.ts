@@ -15,8 +15,8 @@ export interface VideoConversionResult {
  * (Matches the exact command provided by user)
  */
 export const PYTHON_FFMPEG_SCRIPT = `# ========================================================
-# استودیو دوبله فیلم هوشمند - اسکریپت پایتون استخراج صوت از ویدیو به WAV
-# مشخصات خروجی: PCM 16-bit | 44100Hz Sample Rate | Stereo 2 Channels
+# Video to WAV Audio Extraction Script for Dubbing Studio
+# Output specs: PCM 16-bit | 44100Hz Sample Rate | Stereo 2 Channels
 # ========================================================
 import subprocess
 import shutil
@@ -29,7 +29,7 @@ def find_ffmpeg():
     if system_ffmpeg:
         return system_ffmpeg
     
-    # مسیرهای متداول در ویندوز
+    # Common FFmpeg search paths on Windows
     possible_paths = [
         r"C:\\Users\\Erfan\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg.Shared_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-9.0.2-full_build-shared\\bin\\ffmpeg.exe",
         r"C:\\ffmpeg\\bin\\ffmpeg.exe",
@@ -45,12 +45,12 @@ FFMPEG = find_ffmpeg()
 def video_to_wav(video_path, output_path=None):
     video_path = Path(video_path)
 
-    # بررسی وجود ویدیو
+    # Validate video input file
     if not video_path.exists():
         print(f"[خطا] فایل ویدیو پیدا نشد: {video_path}")
         return None
 
-    # اگر مسیر خروجی مشخص نشده باشد، فایل WAV کنار ویدیو ساخته میشود
+    # Default output WAV path next to video file if omitted
     if output_path is None:
         output_path = video_path.with_suffix(".wav")
     else:
@@ -59,11 +59,11 @@ def video_to_wav(video_path, output_path=None):
     command = [
         FFMPEG,
         "-i", str(video_path),
-        "-vn",                   # حذف تصویر
-        "-acodec", "pcm_s16le",  # فرمت خطی 16 بیتی WAV
+        "-vn",                   # Disable video stream
+        "-acodec", "pcm_s16le",  # Uncompressed 16-bit PCM WAV
         "-ar", "44100",          # Sample Rate: 44.1 kHz
         "-ac", "2",              # Stereo (2 Channels)
-        "-y",                    # جایگزینی خودکار در صورت وجود فایل قبلی
+        "-y",                    # Overwrite existing output file
         str(output_path)
     ]
 

@@ -1,12 +1,12 @@
 /**
  * Extracts a clean base name from an input video, audio, or subtitle file name.
  * Strips extensions (.mp4, .mkv, .wav, .srt, etc.), language codes (.en, .fa),
- * and system annotations (e.g. '(زیرنویس Whisper)').
+ * and system annotations (e.g. '(Whisper Subtitle)').
  *
  * Examples:
  * - "Inception (2010).1080p.mp4" -> "Inception (2010).1080p"
  * - "The_Dark_Knight.en.srt" -> "The_Dark_Knight"
- * - "sample_movie.mp4 (زیرنویس Whisper)" -> "sample_movie"
+ * - "sample_movie.mp4 (Whisper Subtitle)" -> "sample_movie"
  * - "extracted_audio.wav" -> "extracted_audio"
  */
 export function extractCleanBaseName(rawName?: string | null): string {

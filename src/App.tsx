@@ -16,16 +16,13 @@ import {
   Sliders,
   Download,
   CheckCircle2,
-  Sparkles,
-  HelpCircle,
   Film,
-  Music,
   ChevronLeft,
   ChevronRight,
 } from 'lucide-react';
 
 export default function App() {
-  // 1. API Key & Provider State
+  // 1. API runtime configuration and credentials
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem('persian_dub_api_key') || localStorage.getItem('persian_dub_gemini_key') || '';
   });
@@ -43,17 +40,17 @@ export default function App() {
   const [hasEnvKey, setHasEnvKey] = useState<boolean>(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
 
-  // 2. Project Subtitle State
+  // 2. Parsed subtitles and project cues
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
   const [subtitleFileName, setSubtitleFileName] = useState<string>('');
 
-  // 3. Original Video Audio State
+  // 3. Audio buffer and reference video tracks
   const [originalAudioBuffer, setOriginalAudioBuffer] = useState<AudioBuffer | null>(null);
   const [originalAudioName, setOriginalAudioName] = useState<string>('');
   const [originalAudioDuration, setOriginalAudioDuration] = useState<number>(0);
   const [originalAudioBlobUrl, setOriginalAudioBlobUrl] = useState<string | null>(null);
 
-  // 4. Mixing & Audio Output State
+  // 4. Mixing and exported master track states
   const [outputBaseName, setOutputBaseName] = useState<string>('');
   const [mixMode, setMixMode] = useState<'ducking' | 'isolated' | 'full_mix'>('ducking');
   const [persianVolume, setPersianVolume] = useState<number>(1.0);
@@ -63,11 +60,11 @@ export default function App() {
   const [sharedAudioBuffer, setSharedAudioBuffer] = useState<AudioBuffer | null>(null);
   const [sharedDuration, setSharedDuration] = useState<number>(0);
 
-  // 5. Active Step / Tab
+  // 5. Active stepper view (1 through 5)
   const [activeStep, setActiveStep] = useState<number>(1);
   const [viewMode, setViewMode] = useState<'stepper' | 'all'>('stepper');
 
-  // Check server environment key on mount
+  // Verify server environment credentials on initial mount
   useEffect(() => {
     fetch('/api/check-key', {
       method: 'POST',
@@ -86,7 +83,7 @@ export default function App() {
           setHasEnvKey(true);
         }
       })
-      .catch((_) => {});
+      .catch(() => {});
   }, [apiKey, baseUrl, translationModel, ttsModel]);
 
   const handleSaveApiKey = (
@@ -148,7 +145,7 @@ export default function App() {
     setSubtitles(items);
   };
 
-  // Progress stats
+  // Progress calculations
   const translatedCount = subtitles.filter((s) => s.farsiText.trim().length > 0).length;
   const readyVoicesCount = subtitles.filter((s) => s.audioBase64).length;
 
@@ -191,8 +188,8 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-['Vazirmatn',sans-serif]">
-      {/* Top Header */}
+    <div className="min-h-screen bg-[#090d11] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif]">
+      {/* Top Navigation Bar */}
       <Header
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         hasApiKey={Boolean(apiKey || hasEnvKey)}
@@ -200,21 +197,35 @@ export default function App() {
         readyVoicesCount={readyVoicesCount}
       />
 
-      {/* Main Container */}
+      {/* Main Studio Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Hero Introduction & Quick Tour */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-emerald-500/10 via-slate-900 to-slate-900 border border-slate-800 p-6 sm:p-7">
-          <div className="relative z-10 max-w-3xl">
-            <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight tracking-tight">
+        {/* Hero Introduction Banner with prominent logo */}
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-[#099767]/20 via-[#0f151d] to-[#090d11] border border-[#099767]/30 p-6 sm:p-8 shadow-2xl shadow-black/50 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+          <div className="relative z-10 max-w-2xl space-y-3">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#099767]/20 text-[#34d399] border border-[#099767]/35 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-[#099767] animate-pulse" />
+              <span>استودیو دوبله Vidans</span>
+            </div>
+            <h2 className="text-2xl sm:text-3xl lg:text-4xl font-black text-white leading-tight tracking-tight drop-shadow-sm">
               در پنج مرحله فایل دوبله شما آماده است
             </h2>
           </div>
 
-          <div className="absolute -left-12 -bottom-12 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="relative z-10 shrink-0 flex items-center justify-center">
+            <div className="relative group cursor-pointer">
+              <img
+                src="/logo.png"
+                alt="Vidans"
+                className="w-24 h-24 sm:w-28 sm:h-28 md:w-32 md:h-32 rounded-full object-cover shadow-2xl shadow-[#099767]/40 ring-4 ring-[#099767]/60 transition-transform duration-500 group-hover:scale-105 animate-logo-glow"
+              />
+            </div>
+          </div>
+
+          <div className="absolute -left-12 -bottom-12 w-72 h-72 bg-[#099767]/15 rounded-full blur-3xl pointer-events-none" />
         </div>
 
         {/* Stepper Navigation Bar */}
-        <div className="bg-slate-900/90 border border-slate-800/80 rounded-2xl p-2 sm:p-3 shadow-lg">
+        <div className="bg-[#0f151d]/90 border border-slate-800/80 rounded-2xl p-2 sm:p-3 shadow-lg">
           <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
             {steps.map((step) => {
               const Icon = step.icon;
@@ -224,18 +235,18 @@ export default function App() {
                   key={step.num}
                   type="button"
                   onClick={() => setActiveStep(step.num)}
-                  className={`flex items-center gap-3 p-3 rounded-xl border text-right transition-all ${
+                  className={`flex items-center gap-3 p-3 rounded-xl border text-right transition-all duration-200 hover:-translate-y-0.5 active:scale-95 cursor-pointer ${
                     isActive
-                      ? 'bg-[#099767]/15 border-[#099767]/80 text-[#34d399] shadow-md shadow-[#099767]/10'
+                      ? 'bg-[#099767]/15 border-[#099767]/80 text-[#34d399] shadow-md shadow-[#099767]/15 ring-1 ring-[#099767]/40'
                       : step.isCompleted
-                      ? 'bg-slate-950/60 border-emerald-500/30 text-slate-300 hover:border-slate-700'
+                      ? 'bg-slate-950/60 border-emerald-500/30 text-slate-300 hover:border-[#099767]/50'
                       : 'bg-slate-950/40 border-slate-800/60 text-slate-400 hover:border-slate-700'
                   }`}
                 >
                   <div
-                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold transition ${
+                    className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold transition-all duration-200 ${
                       isActive
-                        ? 'bg-[#099767] text-white'
+                        ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/30'
                         : step.isCompleted
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : 'bg-slate-800 text-slate-400'
@@ -263,10 +274,10 @@ export default function App() {
           </div>
         </div>
 
-        {/* Dynamic Studio Stage Views */}
+        {/* Dynamic Studio Stage Views with smooth fade transition */}
         <div className="space-y-8">
           {/* Step 1: Uploaders */}
-          <div className={activeStep === 1 || viewMode === 'all' ? 'block' : 'hidden'}>
+          <div className={`animate-fade-in ${activeStep === 1 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <FileUploaderSection
               apiKey={apiKey}
               baseUrl={baseUrl}
@@ -284,7 +295,7 @@ export default function App() {
           </div>
 
           {/* Step 2: Translation Studio */}
-          <div className={activeStep === 2 || viewMode === 'all' ? 'block' : 'hidden'}>
+          <div className={`animate-fade-in ${activeStep === 2 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <TranslationStudio
               apiKey={apiKey}
               baseUrl={baseUrl}
@@ -298,7 +309,7 @@ export default function App() {
           </div>
 
           {/* Step 3: Voice Synthesis Studio */}
-          <div className={activeStep === 3 || viewMode === 'all' ? 'block' : 'hidden'}>
+          <div className={`animate-fade-in ${activeStep === 3 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <VoiceSynthesisStudio
               apiKey={apiKey}
               baseUrl={baseUrl}
@@ -312,7 +323,7 @@ export default function App() {
           </div>
 
           {/* Step 4: Timeline & Mixer */}
-          <div className={activeStep === 4 || viewMode === 'all' ? 'block' : 'hidden'}>
+          <div className={`animate-fade-in ${activeStep === 4 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <TimelinePlayer
               subtitles={subtitles}
               onUpdateSubtitle={handleUpdateSubtitle}
@@ -340,7 +351,7 @@ export default function App() {
           </div>
 
           {/* Step 5: Export & Download */}
-          <div className={activeStep === 5 || viewMode === 'all' ? 'block' : 'hidden'}>
+          <div className={`animate-fade-in ${activeStep === 5 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <ExportStudio
               subtitles={subtitles}
               originalAudioBuffer={originalAudioBuffer}
@@ -369,13 +380,13 @@ export default function App() {
             type="button"
             onClick={() => setActiveStep((prev) => Math.max(1, prev - 1))}
             disabled={activeStep === 1}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-800 transition disabled:opacity-30 disabled:pointer-events-none"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-800 transition-all duration-200 active:scale-95 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
           >
             <ChevronRight className="w-4 h-4" />
             <span>مرحله قبل</span>
           </button>
 
-          <div className="text-xs text-slate-500">
+          <div className="text-xs text-slate-500 font-medium">
             مرحله {activeStep} از ۵
           </div>
 
@@ -383,7 +394,7 @@ export default function App() {
             type="button"
             onClick={() => setActiveStep((prev) => Math.min(5, prev + 1))}
             disabled={activeStep === 5}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold border border-slate-800 transition disabled:opacity-30 disabled:pointer-events-none"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white text-xs font-bold transition-all duration-200 active:scale-95 shadow-md shadow-[#099767]/25 disabled:opacity-30 disabled:pointer-events-none cursor-pointer"
           >
             <span>مرحله بعد</span>
             <ChevronLeft className="w-4 h-4" />
@@ -392,10 +403,10 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/60 bg-slate-950 py-6 text-center text-xs text-slate-500 mt-12">
+      <footer className="border-t border-slate-800/60 bg-[#090d11] py-6 text-center text-xs text-slate-500 mt-12">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
           <span className="flex items-center gap-2 text-slate-400">
-            <img src="/logo.png" alt="Vidans" className="w-4 h-4 rounded-full" />
+            <img src="/logo.png" alt="Vidans" className="w-5 h-5 rounded-full object-cover" />
             Vidans
           </span>
         </div>
