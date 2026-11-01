@@ -644,7 +644,7 @@ function getApiConfig(req: Request): ApiRuntimeConfig {
   const rawBaseUrl = (customBaseUrl && customBaseUrl.trim()) || process.env.API_BASE_URL || 'https://api.hormouz.net/v1';
   const cleanBaseUrl = rawBaseUrl.replace(/\/+$/, '');
 
-  const translationModel = (customTranslationModel && customTranslationModel.trim()) || process.env.TRANSLATION_MODEL || 'OpenAI: GPT-6 Luna';
+  const translationModel = (customTranslationModel && customTranslationModel.trim()) || process.env.TRANSLATION_MODEL || 'Anthropic: Claude Haiku 5.5';
   const ttsModel = (customTtsModel && customTtsModel.trim()) || process.env.TTS_MODEL || 'google/gemini-3.8-flash-lite-tts';
 
   const isGeminiDirect = apiKey.startsWith('AIzaSy') && (!customBaseUrl || cleanBaseUrl.includes('googleapis.com'));

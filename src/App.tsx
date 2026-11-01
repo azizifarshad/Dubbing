@@ -33,7 +33,9 @@ export default function App() {
     return localStorage.getItem('persian_dub_base_url') || 'https://api.hormouz.net/v1';
   });
   const [translationModel, setTranslationModel] = useState<string>(() => {
-    return localStorage.getItem('persian_dub_translation_model') || 'OpenAI: GPT-6 Luna';
+    const saved = localStorage.getItem('persian_dub_translation_model');
+    if (!saved || saved === 'OpenAI: GPT-6 Luna') return 'Anthropic: Claude Haiku 5.5';
+    return saved;
   });
   const [ttsModel, setTtsModel] = useState<string>(() => {
     return localStorage.getItem('persian_dub_tts_model') || 'google/gemini-3.8-flash-lite-tts';

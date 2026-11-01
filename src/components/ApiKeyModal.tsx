@@ -31,7 +31,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   onClose,
   apiKey,
   baseUrl = 'https://api.hormouz.net/v1',
-  translationModel = 'OpenAI: GPT-6 Luna',
+  translationModel = 'Anthropic: Claude Haiku 5.5',
   ttsModel = 'google/gemini-3.8-flash-lite-tts',
   onSaveApiKey,
   hasEnvKey,
@@ -324,7 +324,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                   setInputTransModel(e.target.value);
                   setTestResult(null);
                 }}
-                placeholder="مثلاً: gpt-4o یا openai/gpt-4o"
+                placeholder="Anthropic: Claude Haiku 5.5"
                 dir="ltr"
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-amber-500 transition"
               />
