@@ -153,7 +153,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
         {/* Modal Header */}
         <div className="flex items-center gap-3 mb-5">
-          <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+          <div className="w-10 h-10 rounded-xl bg-[#099767]/10 border border-[#099767]/30 flex items-center justify-center text-[#34d399]">
             <Key className="w-5 h-5" />
           </div>
           <div>
@@ -175,11 +175,11 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             }}
             className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition ${
               provider === 'hormouz'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                ? 'bg-[#099767]/20 text-[#34d399] border border-[#099767]/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Globe className="w-4 h-4 text-amber-400" />
+            <Globe className="w-4 h-4 text-[#34d399]" />
             <span>هوش مصنوعی هرمز (Hormouz AI)</span>
           </button>
 
@@ -191,11 +191,11 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             }}
             className={`py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition ${
               provider === 'gemini'
-                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40 shadow-sm'
+                ? 'bg-[#099767]/20 text-[#34d399] border border-[#099767]/40 shadow-sm'
                 : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Sparkles className="w-4 h-4 text-amber-400" />
+            <Sparkles className="w-4 h-4 text-[#34d399]" />
             <span>Google Gemini مستقیم</span>
           </button>
         </div>
@@ -230,7 +230,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               }}
               placeholder={provider === 'hormouz' ? 'کلید هرمز...' : 'AIzaSy...'}
               dir="ltr"
-              className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-4 pl-12 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-amber-500 font-mono transition"
+              className="w-full bg-slate-950 border border-slate-700 rounded-xl py-2.5 px-4 pl-12 text-sm text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-[#099767] font-mono transition"
             />
             <button
               type="button"
@@ -248,7 +248,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             {/* Base URL */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-amber-400" />
+                <Globe className="w-3.5 h-3.5 text-[#34d399]" />
                 <span>آدرس پایه سرویس (Base URL):</span>
               </label>
               <input
@@ -260,7 +260,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 }}
                 placeholder="https://api.hormouz.net/v1"
                 dir="ltr"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-amber-500 transition"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#099767] transition"
               />
             </div>
 
@@ -295,7 +295,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                       }}
                       className={`text-[11px] px-2.5 py-1 rounded-md font-mono border transition ${
                         inputTransModel === m || inputTtsModel === m
-                          ? 'bg-amber-500/20 border-amber-500/60 text-amber-300'
+                          ? 'bg-[#099767]/20 border-[#099767]/50 text-[#34d399]'
                           : 'bg-slate-900 hover:bg-slate-800 border-slate-700 text-slate-200'
                       }`}
                     >
@@ -326,9 +326,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 }}
                 placeholder="Anthropic: Claude Haiku 5.5"
                 dir="ltr"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-amber-500 transition"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#099767] transition"
               />
-              <p className="text-[10px] text-amber-400/90 leading-relaxed">
+              <p className="text-[10px] text-emerald-400/90 leading-relaxed">
                 اگر ارور ۴۰۳ دریافت کردید، بررسی کنید در پنل هرمز (app.hormouz.net/keys) تیک مجاز بودن کدام مدل چت/ترجمه برای این کلید فعال است و نام دقیق آن را اینجا قرار دهید.
               </p>
             </div>
@@ -350,7 +350,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 }}
                 placeholder="google/gemini-3.8-flash-lite-tts"
                 dir="ltr"
-                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-amber-500 transition"
+                className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#099767] transition"
               />
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <span className="text-[10px] text-slate-500">پیش‌فرض:</span>
@@ -395,7 +395,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             {isTesting ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
             ) : (
-              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <Sparkles className="w-3.5 h-3.5 text-[#34d399]" />
             )}
             <span>تست و بررسی اتصال</span>
           </button>
@@ -411,7 +411,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
             <button
               type="button"
               onClick={handleSave}
-              className="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-semibold text-xs transition shadow-lg shadow-amber-500/20"
+              className="px-5 py-2 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white font-semibold text-xs transition shadow-lg shadow-[#099767]/20"
             >
               ذخیره و اعمال
             </button>

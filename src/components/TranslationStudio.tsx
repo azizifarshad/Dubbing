@@ -330,7 +330,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-800">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-bold border border-amber-500/30">
+            <span className="w-8 h-8 rounded-lg bg-[#099767]/20 text-[#34d399] flex items-center justify-center text-sm font-bold border border-[#099767]/30">
               ۲
             </span>
             <span>ترجمه تخصصی و تنظیم متن دوبله فارسی</span>
@@ -342,7 +342,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <div className="bg-slate-950 border border-slate-700/80 px-3.5 py-1.5 rounded-xl flex items-center gap-2">
             <span className="text-slate-400">وضعیت ترجمه:</span>
-            <span className="font-bold text-amber-400">
+            <span className="font-bold text-[#34d399]">
               {translatedCount} از {subtitles.length} خط
             </span>
           </div>
@@ -352,7 +352,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
             type="button"
             onClick={handleTranslateAll}
             disabled={isTranslating}
-            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-lg shadow-amber-500/20 disabled:opacity-50"
+            className="flex items-center gap-2 px-5 py-2 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white font-bold text-xs transition shadow-lg shadow-[#099767]/20 disabled:opacity-50"
           >
             {isTranslating ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -376,7 +376,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
       <div className="mb-6 p-4 bg-slate-950/70 rounded-2xl border border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
-            <Cpu className="w-4 h-4 text-amber-400" />
+            <Cpu className="w-4 h-4 text-[#34d399]" />
             <span>انتخاب موتور ترجمه:</span>
           </div>
 
@@ -386,7 +386,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
               onClick={() => setTranslationEngine('gemini')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
                 translationEngine === 'gemini'
-                  ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                  ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
                   : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -413,7 +413,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
         <div className="text-[11px] text-slate-400 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
           {translationEngine === 'gemini' ? (
             <span>
-              <strong className="text-amber-300">مدل Claude Haiku 5.5:</strong> ترجمه پرسرعت با هوش مصنوعی با بیان رسا و حفظ اصطلاحات تخصصی کامپیوتر.
+              <strong className="text-[#34d399]">مدل Claude Haiku 5.5:</strong> ترجمه پرسرعت با هوش مصنوعی با بیان رسا و حفظ اصطلاحات تخصصی کامپیوتر.
             </span>
           ) : (
             <span>
@@ -428,7 +428,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
         {/* Style Selector */}
         <div>
           <label className="text-xs font-semibold text-slate-300 block mb-2 flex items-center gap-1.5">
-            <Languages className="w-4 h-4 text-amber-400" />
+            <Languages className="w-4 h-4 text-[#34d399]" />
             <span>لحن و سبک ترجمه دوبله:</span>
           </label>
           <div className="grid grid-cols-2 gap-2">
@@ -439,7 +439,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                 onClick={() => setSelectedStyle(st.id)}
                 className={`text-right p-2.5 rounded-xl border text-xs transition ${
                   selectedStyle === st.id
-                    ? 'bg-amber-500/15 border-amber-500 text-amber-200'
+                    ? 'bg-[#099767]/15 border-[#099767] text-emerald-200'
                     : 'bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700'
                 }`}
               >
@@ -485,9 +485,9 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
       </div>
 
       {/* Master Translation Rules & Prompt Inspector */}
-      <div className="mb-6 p-4 rounded-2xl bg-slate-950/80 border border-amber-500/30 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
+      <div className="mb-6 p-4 rounded-2xl bg-slate-950/80 border border-[#099767]/30 text-xs flex flex-col md:flex-row md:items-center justify-between gap-3 shadow-md">
         <div className="flex items-start gap-2.5">
-          <Sparkles className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <Sparkles className="w-4 h-4 text-[#34d399] shrink-0 mt-0.5" />
           <div>
             <div className="font-bold text-slate-200 flex flex-wrap items-center gap-2">
               <span>قوانین طلایی ترجمه و پرامپت استودیو:</span>
@@ -508,7 +508,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
           <button
             type="button"
             onClick={() => setShowPromptModal(true)}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 transition text-[11px] font-medium"
+            className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-[#099767]/10 hover:bg-[#099767]/20 text-[#34d399] border border-[#099767]/30 transition text-[11px] font-medium"
           >
             <FileText className="w-3.5 h-3.5" />
             <span>مشاهده پرامپت ارسالی به هوش مصنوعی</span>
@@ -518,9 +518,9 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
 
 
       {translationError && (
-        <div className="mb-6 p-4 rounded-2xl bg-amber-950/40 border border-amber-500/50 text-amber-200 text-xs shadow-lg">
-          <div className="flex items-center gap-2 font-bold text-amber-300 mb-1.5">
-            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+        <div className="mb-6 p-4 rounded-2xl bg-[#064e3b]/30 border border-[#099767]/50 text-emerald-200 text-xs shadow-lg">
+          <div className="flex items-center gap-2 font-bold text-[#34d399] mb-1.5">
+            <AlertCircle className="w-4 h-4 text-[#34d399] shrink-0" />
             <span>{translationError}</span>
           </div>
           <p className="text-slate-300 leading-relaxed mb-3">
@@ -531,7 +531,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
               type="button"
               onClick={handleTranslateAll}
               disabled={isTranslating}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold transition text-xs shadow"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white font-bold transition text-xs shadow"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isTranslating ? 'animate-spin' : ''}`} />
               <span>تلاش مجدد ترجمه دیالوگ‌ها با جمینای</span>
@@ -566,12 +566,12 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
               className={`p-4 rounded-2xl border transition-all ${
                 sub.farsiText.trim()
                   ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
-                  : 'bg-slate-950/40 border-amber-500/20'
+                  : 'bg-slate-950/40 border-[#099767]/20'
               }`}
             >
               <div className="flex items-center justify-between gap-3 mb-2.5 pb-2 border-b border-slate-800/60 text-xs">
                 <div className="flex items-center gap-2 text-slate-400 font-mono">
-                  <span className="w-6 h-6 rounded-md bg-slate-800 text-amber-400 flex items-center justify-center font-bold text-xs">
+                  <span className="w-6 h-6 rounded-md bg-slate-800 text-[#34d399] flex items-center justify-center font-bold text-xs">
                     {idx + 1}
                   </span>
                   <span className="text-slate-300">
@@ -592,7 +592,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                         voice: e.target.value as any,
                       })
                     }
-                    className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg py-1 px-2.5 focus:outline-none focus:border-amber-500"
+                    className="bg-slate-900 border border-slate-700 text-slate-200 text-xs rounded-lg py-1 px-2.5 focus:outline-none focus:border-[#099767]"
                   >
                     {AVAILABLE_VOICES.map((v) => (
                       <option key={v.id} value={v.id}>
@@ -641,9 +641,9 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                 <div className={`rounded-xl p-3 border transition-all ${
                   isExceedingBudget
                     ? 'bg-rose-950/20 border-rose-500/40'
-                    : 'bg-amber-500/5 border-amber-500/20'
+                    : 'bg-[#099767]/5 border-[#099767]/20'
                 }`}>
-                  <div className="text-[11px] font-semibold text-amber-400 mb-1 flex items-center justify-between flex-wrap gap-1">
+                  <div className="text-[11px] font-semibold text-[#34d399] mb-1 flex items-center justify-between flex-wrap gap-1">
                     <span>دیالوگ دوبله فارسی:</span>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {faWords > 0 && (
@@ -686,7 +686,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                       })
                     }
                     placeholder="ترجمه فارسی روان، واضح و کامل این خط دیالوگ..."
-                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-amber-500 resize-none font-sans leading-relaxed"
+                    className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-[#099767] resize-none font-sans leading-relaxed"
                   />
                 </div>
               </div>
@@ -721,7 +721,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
               <div className="flex items-center gap-2.5">
-                <Sliders className="w-5 h-5 text-amber-400" />
+                <Sliders className="w-5 h-5 text-[#34d399]" />
                 <div>
                   <h3 className="font-bold text-slate-200 text-sm">ویرایش و تنظیم پرامپت ترجمه (Claude Haiku 5.5)</h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">دستورالعمل هوش مصنوعی برای لحن محاوره‌ای مدرس، رعایت سقف کلمات و حفظ اصطلاحات انگلیسی</p>
@@ -748,7 +748,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                 onChange={(e) => setEditedPrompt(e.target.value)}
                 rows={13}
                 dir="ltr"
-                className="w-full bg-slate-900 border border-slate-700/80 rounded-xl p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-400 leading-relaxed resize-y selection:bg-amber-500/30 selection:text-white"
+                className="w-full bg-slate-900 border border-slate-700/80 rounded-xl p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-[#099767] leading-relaxed resize-y selection:bg-[#099767]/30 selection:text-white"
                 placeholder="پرامپت ترجمه را وارد کنید..."
               />
 
@@ -813,7 +813,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                       setPromptSavedAlert(false);
                     }, 800);
                   }}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-md shadow-amber-500/20"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white font-bold text-xs transition shadow-md shadow-[#099767]/20"
                 >
                   <Check className="w-3.5 h-3.5" />
                   <span>ذخیره و اعمال پرامپت</span>

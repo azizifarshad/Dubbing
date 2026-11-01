@@ -377,7 +377,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-800">
         <div>
           <h2 className="text-xl font-bold text-white flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-bold border border-amber-500/30">
+            <span className="w-8 h-8 rounded-lg bg-[#099767]/20 text-[#34d399] flex items-center justify-center text-sm font-bold border border-[#099767]/30">
               ۳
             </span>
             <span>تولید صدای دوبلورها با هوش مصنوعی</span>
@@ -400,7 +400,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
               onClick={() => setVoiceEngine('gemini')}
               className={`px-3 py-1.5 rounded-lg font-semibold transition flex items-center gap-1.5 ${
                 voiceEngine === 'gemini'
-                  ? 'bg-amber-500 text-slate-950 shadow-md'
+                  ? 'bg-[#099767] text-white shadow-md'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -445,9 +445,9 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
 
       {/* Daily Quota Exhausted Banner with Instant Resolution */}
       {isDailyLimitHit && (
-        <div className="mb-6 p-5 bg-gradient-to-r from-amber-950/80 via-slate-900 to-amber-950/80 rounded-2xl border border-amber-500/60 shadow-xl shadow-amber-500/10">
-          <div className="flex items-center gap-2.5 font-bold text-amber-300 mb-2">
-            <AlertCircle className="w-5 h-5 text-amber-400 shrink-0" />
+        <div className="mb-6 p-5 bg-gradient-to-r from-[#064e3b]/30 via-slate-900 to-[#064e3b]/30 rounded-2xl border border-[#099767]/50 shadow-xl shadow-[#099767]/10">
+          <div className="flex items-center gap-2.5 font-bold text-[#34d399] mb-2">
+            <AlertCircle className="w-5 h-5 text-[#34d399] shrink-0" />
             <span className="text-sm">سهمیه روزانه مدل صوتی تکمیل شده است</span>
           </div>
           <p className="text-xs text-slate-300 leading-relaxed mb-4">
@@ -472,7 +472,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
                 onClick={onOpenApiKeyModal}
                 className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold text-xs transition flex items-center gap-2"
               >
-                <Key className="w-3.5 h-3.5 text-amber-400" />
+                <Key className="w-3.5 h-3.5 text-[#34d399]" />
                 <span>تنظیم کلید جدید API یا دارای Billing</span>
               </button>
             )}
@@ -484,7 +484,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
       <div className="mb-6 p-4 rounded-2xl bg-slate-950/70 border border-slate-800">
         <div className="flex items-center justify-between gap-2 mb-3">
           <label className="text-xs font-bold text-slate-200 flex items-center gap-2">
-            <GraduationCap className="w-4 h-4 text-amber-400" />
+            <GraduationCap className="w-4 h-4 text-[#34d399]" />
             <span>پرسونای گفتاری هوش مصنوعی:</span>
           </label>
         </div>
@@ -507,7 +507,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
                 }}
                 className={`p-3.5 rounded-xl border text-right transition flex flex-col justify-between ${
                   isSelected
-                    ? 'bg-amber-500/15 border-amber-500 text-amber-200 shadow-md shadow-amber-500/10 ring-1 ring-amber-500/30'
+                    ? 'bg-[#099767]/15 border-[#099767] text-emerald-200 shadow-md shadow-[#099767]/10 ring-1 ring-[#099767]/30'
                     : 'bg-slate-900/90 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-900'
                 }`}
               >
@@ -526,7 +526,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
                       </span>
                     </div>
                     {isSelected && (
-                      <span className="px-2 py-0.5 rounded-md bg-amber-500 text-slate-950 font-bold text-[10px]">
+                      <span className="px-2 py-0.5 rounded-md bg-[#099767] text-white font-bold text-[10px]">
                         فعال
                       </span>
                     )}
@@ -538,7 +538,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
 
                 <div className="text-[10px] font-mono text-slate-500 flex items-center justify-between border-t border-slate-800/80 pt-1.5 mt-1">
                   <span>شناسه AI Studio: {p.defaultVoice}</span>
-                  <span className="text-amber-400/70">لحن آموزشی</span>
+                  <span className="text-emerald-400/70">لحن آموزشی</span>
                 </div>
               </button>
             );
@@ -548,14 +548,14 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
 
       {/* Prominent Rate-Limit Auto-Retry Countdown Banner (Only for short RPM limits) */}
       {countdownInfo && !isDailyLimitHit && (
-        <div className="mb-6 p-5 bg-gradient-to-r from-amber-950/70 via-slate-900 to-amber-950/70 rounded-2xl border border-amber-500/60 shadow-xl shadow-amber-500/10 animate-in fade-in duration-200">
+        <div className="mb-6 p-5 bg-gradient-to-r from-[#064e3b]/30 via-slate-900 to-[#064e3b]/30 rounded-2xl border border-[#099767]/50 shadow-xl shadow-[#099767]/10 animate-in fade-in duration-200">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-lg bg-[#099767]/20 text-[#34d399] flex items-center justify-center">
                 <Timer className="w-5 h-5 animate-pulse" />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-amber-300">
+                <h4 className="text-sm font-bold text-[#34d399]">
                   {countdownInfo.message || 'در حال انتظار جهت تمدید سهمیه...'}
                 </h4>
                 <p className="text-xs text-slate-300 mt-0.5">
@@ -565,7 +565,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="px-3.5 py-1.5 rounded-xl bg-amber-500 text-slate-950 font-black text-sm flex items-center gap-1.5 shadow-md shadow-amber-500/20 font-mono">
+              <div className="px-3.5 py-1.5 rounded-xl bg-[#099767] text-white font-black text-sm flex items-center gap-1.5 shadow-md shadow-[#099767]/20 font-mono">
                 <span>{countdownInfo.secondsLeft}</span>
                 <span className="text-xs font-sans font-bold">ثانیه دیگر</span>
               </div>
@@ -582,7 +582,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
 
           <div className="w-full h-2.5 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
             <div
-              className="h-full bg-gradient-to-r from-amber-500 to-amber-300 transition-all duration-1000 ease-linear"
+              className="h-full bg-gradient-to-r from-[#099767] to-[#34d399] transition-all duration-1000 ease-linear"
               style={{
                 width: `${Math.max(0, Math.min(100, (1 - countdownInfo.secondsLeft / countdownInfo.totalSeconds) * 100))}%`,
               }}
@@ -640,7 +640,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
               key={sub.id}
               className={`p-4 rounded-2xl border transition-all ${
                 isThisLineCountingDown
-                  ? 'bg-amber-950/30 border-amber-500/60 shadow-lg shadow-amber-500/5'
+                  ? 'bg-[#064e3b]/25 border-[#099767]/50 shadow-lg shadow-[#099767]/5'
                   : hasAudio
                   ? 'bg-slate-950/70 border-emerald-500/30 hover:border-emerald-500/50'
                   : 'bg-slate-950/40 border-slate-800'
@@ -650,7 +650,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
                 {/* Left: Info & Voice Info */}
                 <div className="flex-1">
                   <div className="flex items-center gap-2 text-xs text-slate-400 mb-1.5 font-mono">
-                    <span className="w-6 h-6 rounded-md bg-slate-800 text-amber-400 flex items-center justify-center font-bold text-xs">
+                    <span className="w-6 h-6 rounded-md bg-slate-800 text-[#34d399] flex items-center justify-center font-bold text-xs">
                       {idx + 1}
                     </span>
                     <span className="text-slate-300">
@@ -673,7 +673,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
                     )}
 
                     {isThisLineCountingDown && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 font-sans animate-pulse">
+                      <span className="text-[11px] px-2 py-0.5 rounded-md bg-[#099767]/20 text-[#34d399] border border-[#099767]/40 font-sans animate-pulse">
                         تلاش خودکار در {countdownInfo.secondsLeft} ثانیه...
                       </span>
                     )}
@@ -702,7 +702,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
                       onClick={() => handlePlayLineAudio(sub)}
                       className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
                         isPlaying
-                          ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                          ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
                           : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700'
                       }`}
                     >
@@ -773,7 +773,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
           <button
             type="button"
             onClick={onProceedToMixer}
-            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs transition shadow-lg shadow-amber-500/20"
+            className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#099767] to-[#077d54] hover:from-[#0ba873] hover:to-[#099767] text-white font-bold text-xs transition shadow-lg shadow-[#099767]/20"
           >
             <Sparkles className="w-4 h-4" />
             <span>مرحله بعد: استودیو میکس و پخش همگام &larr;</span>

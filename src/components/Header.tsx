@@ -36,7 +36,7 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="hidden md:flex items-center gap-3 text-xs bg-slate-800/80 border border-slate-700/60 px-3.5 py-1.5 rounded-lg text-slate-300">
               <div className="flex items-center gap-1.5">
                 <span className="text-slate-400">دیالوگ‌ها:</span>
-                <span className="font-semibold text-amber-400">{activeLinesCount}</span>
+                <span className="font-semibold text-[#34d399]">{activeLinesCount}</span>
               </div>
               <span className="text-slate-600">|</span>
               <div className="flex items-center gap-1.5">
@@ -51,7 +51,7 @@ export const Header: React.FC<HeaderProps> = ({
             className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all border ${
               hasApiKey
                 ? 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                : 'bg-[#099767]/10 hover:bg-[#099767]/20 text-[#34d399] border-[#099767]/40 animate-pulse'
             }`}
           >
             <Key className="w-4 h-4" />
@@ -59,7 +59,7 @@ export const Header: React.FC<HeaderProps> = ({
             {hasApiKey ? (
               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
             ) : (
-              <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
+              <AlertCircle className="w-3.5 h-3.5 text-[#34d399]" />
             )}
           </button>
         </div>

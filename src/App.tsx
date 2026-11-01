@@ -226,7 +226,7 @@ export default function App() {
                   onClick={() => setActiveStep(step.num)}
                   className={`flex items-center gap-3 p-3 rounded-xl border text-right transition-all ${
                     isActive
-                      ? 'bg-amber-500/15 border-amber-500/80 text-amber-300 shadow-md shadow-amber-500/10'
+                      ? 'bg-[#099767]/15 border-[#099767]/80 text-[#34d399] shadow-md shadow-[#099767]/10'
                       : step.isCompleted
                       ? 'bg-slate-950/60 border-emerald-500/30 text-slate-300 hover:border-slate-700'
                       : 'bg-slate-950/40 border-slate-800/60 text-slate-400 hover:border-slate-700'
@@ -235,7 +235,7 @@ export default function App() {
                   <div
                     className={`w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-xs font-bold transition ${
                       isActive
-                        ? 'bg-amber-500 text-slate-950'
+                        ? 'bg-[#099767] text-white'
                         : step.isCompleted
                         ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
                         : 'bg-slate-800 text-slate-400'

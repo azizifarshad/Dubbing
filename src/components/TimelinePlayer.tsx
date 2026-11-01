@@ -611,7 +611,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 mb-6 pb-6 border-b border-slate-800">
         <div>
           <div className="flex items-center gap-2.5">
-            <span className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm font-bold border border-amber-500/30">
+            <span className="w-8 h-8 rounded-lg bg-[#099767]/20 text-[#34d399] flex items-center justify-center text-sm font-bold border border-[#099767]/30">
               ۴
             </span>
             <h2 className="text-xl font-bold text-white">
@@ -619,14 +619,14 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             </h2>
           </div>
           <p className="text-xs sm:text-sm text-slate-400 mt-1 leading-relaxed">
-            متن و زمان‌بندی زیرنویس به صورت <strong className="text-slate-200">ثابت و قفل‌شده</strong> روی تایم‌لاین قرار دارند؛ شما می‌توانید صوت استخراج شده هر قسمت را به راحتی با کشیدن (Drag) یا کلیدهای جابجایی <strong className="text-amber-300">عقب و جلو</strong> کنید و در صورت تداخل یا افتادن صداها روی یکدیگر، سیستم هشدار داده و با یک کلیک آن را برطرف می‌کند.
+            متن و زمان‌بندی زیرنویس به صورت <strong className="text-slate-200">ثابت و قفل‌شده</strong> روی تایم‌لاین قرار دارند؛ شما می‌توانید صوت استخراج شده هر قسمت را به راحتی با کشیدن (Drag) یا کلیدهای جابجایی <strong className="text-[#34d399]">عقب و جلو</strong> کنید و در صورت تداخل یا افتادن صداها روی یکدیگر، سیستم هشدار داده و با یک کلیک آن را برطرف می‌کند.
           </p>
         </div>
 
         {/* Mix Output Status Badge & Quick Download */}
         <div className="flex flex-wrap items-center gap-2.5">
           {isRenderingMix ? (
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-medium animate-pulse">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#099767]/10 border border-[#099767]/30 text-[#34d399] text-xs font-medium animate-pulse">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
               <span>{renderProgressMsg || 'در حال رندر فایل خروجی همگام...'}</span>
             </div>
@@ -641,7 +641,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             <button
               type="button"
               onClick={handleDownloadCurrentMix}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 hover:text-amber-200 text-xs font-semibold transition shadow-sm font-mono"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-[#34d399] hover:text-emerald-200 text-xs font-semibold transition shadow-sm font-mono"
               title={`دانلود فایل صوتی میکس نهایی: ${effectiveBaseName}.wav`}
             >
               <Download className="w-3.5 h-3.5" />
@@ -658,7 +658,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
               }
             }}
             disabled={isRenderingMix}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 text-xs font-semibold transition disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#099767]/10 hover:bg-[#099767]/20 border border-[#099767]/30 text-[#34d399] text-xs font-semibold transition disabled:opacity-50"
             title="میکس مجدد صداها با آخرین آفست‌ها"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isRenderingMix ? 'animate-spin' : ''}`} />
@@ -693,7 +693,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
               <button
                 type="button"
                 onClick={handleAutoResolveOverlaps}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-400 hover:to-amber-400 text-slate-950 font-bold transition text-xs shadow-md"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-[#099767] hover:from-rose-400 hover:to-[#10b981] text-slate-950 font-bold transition text-xs shadow-md"
                 title="جابجایی خودکار صوت‌ها جهت برطرف کردن تداخل جملات"
               >
                 <Wand2 className="w-3.5 h-3.5" />
@@ -726,7 +726,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
       {/* Mix Mode Selector */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 p-2 rounded-2xl bg-slate-950/70 border border-slate-800/80">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-400 px-2">
-          <Sliders className="w-4 h-4 text-amber-400" />
+          <Sliders className="w-4 h-4 text-[#34d399]" />
           <span>حالت میکس صدای فیلم و دوبله:</span>
         </div>
 
@@ -736,7 +736,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             onClick={() => onChangeMixMode('ducking')}
             className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 ${
               mixMode === 'ducking'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -749,7 +749,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             onClick={() => onChangeMixMode('isolated')}
             className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 ${
               mixMode === 'isolated'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -762,7 +762,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             onClick={() => onChangeMixMode('full_mix')}
             className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 ${
               mixMode === 'full_mix'
-                ? 'bg-amber-500 text-slate-950 shadow-md shadow-amber-500/20'
+                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
             }`}
           >
@@ -785,13 +785,13 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
         {currentActiveSub ? (
           <div className="animate-in fade-in zoom-in-95 duration-150 max-w-2xl">
-            <div className="text-xl sm:text-2xl font-bold text-amber-300 drop-shadow-md leading-relaxed">
+            <div className="text-xl sm:text-2xl font-bold text-[#34d399] drop-shadow-md leading-relaxed">
               {currentActiveSub.farsiText || currentActiveSub.originalText}
             </div>
             <div dir="ltr" className="text-xs text-slate-400 font-sans mt-2 opacity-80">
               {currentActiveSub.originalText}
             </div>
-            <div className="mt-2 inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-slate-800/80 border border-slate-700 text-[11px] text-amber-400/90">
+            <div className="mt-2 inline-flex items-center gap-2 px-3 py-0.5 rounded-full bg-slate-800/80 border border-slate-700 text-[11px] text-emerald-400/90">
               <span>گوینده: {currentActiveSub.voice}</span>
               {currentActiveSub.audioOffset !== undefined && currentActiveSub.audioOffset !== 0 && (
                 <span className="font-mono text-cyan-300">
@@ -819,7 +819,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
         <div className="flex items-center justify-between gap-4 mb-3 pb-3 border-b border-slate-800/80 text-xs">
           <div className="flex items-center gap-3">
             <span className="font-bold text-slate-300 flex items-center gap-1.5">
-              <MoveHorizontal className="w-4 h-4 text-amber-400" />
+              <MoveHorizontal className="w-4 h-4 text-[#34d399]" />
               <span>خط زمان (Timeline):</span>
             </span>
             <span className="text-slate-500 text-[11px] hidden sm:inline">
@@ -837,7 +837,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                 onClick={() => setZoomLevel(lvl)}
                 className={`px-2 py-0.5 rounded-lg text-[11px] font-mono transition ${
                   zoomLevel === lvl
-                    ? 'bg-amber-500 text-slate-950 font-bold'
+                    ? 'bg-[#099767] text-white font-bold'
                     : 'text-slate-400 hover:text-slate-200'
                 }`}
               >
@@ -884,7 +884,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
               <div className="relative h-14 mb-3 rounded-xl bg-slate-950/80 border border-slate-800/80 p-1 flex items-center">
                 {/* Track label */}
                 <div className="absolute right-2 top-1 text-[9px] font-bold text-slate-500 tracking-wider flex items-center gap-1 z-0 pointer-events-none">
-                  <Lock className="w-2.5 h-2.5 text-amber-500/70" />
+                  <Lock className="w-2.5 h-2.5 text-[#34d399]/70" />
                   <span>ترک ۱: زیرنویس مرجع فیلم (زمان ثابت)</span>
                 </div>
 
@@ -905,9 +905,9 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                       title={`زیرنویس خط #${idx + 1} (${sub.startTimeStr} تا ${sub.endTimeStr})`}
                       className={`absolute top-1 bottom-1 rounded-lg px-2 flex flex-col justify-center border transition-all text-[10px] overflow-hidden ${
                         isSelected
-                          ? 'border-amber-400 bg-amber-500/20 text-amber-200 z-10 shadow-md ring-1 ring-amber-400/50'
+                          ? 'border-[#099767] bg-[#099767]/20 text-emerald-200 z-10 shadow-md ring-1 ring-[#099767]/50'
                           : isCurrentActive
-                          ? 'border-amber-500/80 bg-amber-500/10 text-amber-300 z-10'
+                          ? 'border-[#099767]/80 bg-[#099767]/10 text-[#34d399] z-10'
                           : 'border-slate-700/80 bg-slate-800/70 text-slate-300 hover:border-slate-600'
                       }`}
                       style={{
@@ -963,7 +963,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                           : collisionInfo
                           ? 'border-rose-500 bg-rose-950/75 text-rose-200 ring-2 ring-rose-500/50 z-20 shadow-lg'
                           : isSelected
-                          ? 'border-amber-400 bg-amber-500/25 text-amber-200 ring-2 ring-amber-400/60 z-20 shadow-lg'
+                          ? 'border-[#099767] bg-[#099767]/25 text-emerald-200 ring-2 ring-[#099767]/60 z-20 shadow-lg'
                           : isCurrentPlaying
                           ? 'border-emerald-400 bg-emerald-950/80 text-emerald-200 ring-1 ring-emerald-400 z-10'
                           : hasAudio
@@ -1041,16 +1041,16 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
       {/* SELECTED LINE SYNC INSPECTOR & FINE-TUNING PANEL */}
       {selectedSub && (
-        <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-amber-500/30 shadow-xl animate-in fade-in duration-150">
+        <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-slate-950/90 border border-[#099767]/30 shadow-xl animate-in fade-in duration-150">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-3 mb-3 border-b border-slate-800">
             <div className="flex items-center gap-3">
-              <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-300 font-bold flex items-center justify-center text-xs border border-amber-500/30 font-mono">
+              <span className="w-7 h-7 rounded-lg bg-[#099767]/20 text-[#34d399] font-bold flex items-center justify-center text-xs border border-[#099767]/30 font-mono">
                 #{subtitles.findIndex((s) => s.id === selectedSub.id) + 1}
               </span>
               <div>
                 <div className="text-sm font-bold text-slate-100 flex items-center gap-2">
                   <span>تنظیم و سینک اختصاصی دیالوگ:</span>
-                  <span className="text-xs text-amber-300 font-sans">{selectedSub.farsiText || selectedSub.originalText}</span>
+                  <span className="text-xs text-[#34d399] font-sans">{selectedSub.farsiText || selectedSub.originalText}</span>
                 </div>
                 <div className="text-[11px] text-slate-400 flex items-center gap-3 mt-0.5 font-mono">
                   <span>زمان زیرنویس: {selectedSub.startTimeStr} تا {selectedSub.endTimeStr} ({(selectedSub.end - selectedSub.start).toFixed(2)}s)</span>
@@ -1115,9 +1115,9 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                     audioOffset: parseFloat(e.target.value),
                   })
                 }
-                className="w-full accent-amber-500 cursor-pointer"
+                className="w-full accent-[#099767] cursor-pointer"
               />
-              <span className="font-mono text-xs w-16 text-center py-1 px-2 rounded-lg bg-slate-900 border border-slate-800 text-amber-300 font-bold">
+              <span className="font-mono text-xs w-16 text-center py-1 px-2 rounded-lg bg-slate-900 border border-slate-800 text-[#34d399] font-bold">
                 {(selectedSub.audioOffset || 0) > 0 ? `+${(selectedSub.audioOffset || 0).toFixed(2)}` : (selectedSub.audioOffset || 0).toFixed(2)}s
               </span>
             </div>
@@ -1141,7 +1141,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
               <button
                 type="button"
                 onClick={() => handleResetLineOffset(selectedSub.id)}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-amber-400 transition"
+                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[#34d399] transition"
               >
                 شروع همزمان (0.00s)
               </button>
@@ -1190,7 +1190,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             type="button"
             onClick={handleTogglePlay}
             disabled={!renderedMixBuffer && !originalAudioBuffer}
-            className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold flex items-center justify-center transition shadow-lg shadow-amber-500/25 disabled:opacity-40"
+            className="w-13 h-13 rounded-2xl bg-gradient-to-tr from-[#099767] to-[#077d54] hover:from-[#0ba873] hover:to-[#099767] text-white font-bold flex items-center justify-center transition shadow-lg shadow-[#099767]/25 disabled:opacity-40"
           >
             {isPlaying ? (
               <Pause className="w-6 h-6 fill-current" />
@@ -1223,7 +1223,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
           {/* Time Display */}
           <div className="font-mono text-sm px-3 py-2 bg-slate-900 rounded-xl border border-slate-800 text-slate-200">
-            <span className="text-amber-400 font-semibold">{formatPlayerTime(currentTime)}</span>
+            <span className="text-[#34d399] font-semibold">{formatPlayerTime(currentTime)}</span>
             <span className="text-slate-600 mx-1">/</span>
             <span className="text-slate-400">{formatPlayerTime(maxDuration)}</span>
           </div>
@@ -1233,7 +1233,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
         <div className="flex flex-wrap items-center gap-5 text-xs text-slate-300 w-full md:w-auto">
           {/* Persian Voice Volume */}
           <div className="flex items-center gap-2">
-            <Mic2 className="w-3.5 h-3.5 text-amber-400" />
+            <Mic2 className="w-3.5 h-3.5 text-[#34d399]" />
             <span className="whitespace-nowrap">صدای دوبله:</span>
             <input
               type="range"
@@ -1242,7 +1242,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
               step="0.05"
               value={persianVolume}
               onChange={(e) => onChangePersianVolume(parseFloat(e.target.value))}
-              className="w-20 accent-amber-500 cursor-pointer"
+              className="w-20 accent-[#099767] cursor-pointer"
             />
             <span className="w-8 font-mono text-[11px] text-slate-400">
               {Math.round(persianVolume * 100)}%

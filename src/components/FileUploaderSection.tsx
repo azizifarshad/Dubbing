@@ -530,11 +530,11 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
           className={`cursor-pointer rounded-2xl p-5 border transition-all relative overflow-hidden group ${
             apiKey || hasEnvKey
               ? 'bg-slate-950/60 border-emerald-500/40 hover:border-emerald-500/60'
-              : 'bg-slate-950/60 border-amber-500/40 hover:border-amber-500/70 shadow-lg shadow-amber-500/5'
+              : 'bg-slate-950/60 border-[#099767]/40 hover:border-[#099767]/70 shadow-lg shadow-[#099767]/5'
           }`}
         >
           <div className="flex items-start justify-between mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 group-hover:scale-105 transition-transform">
+            <div className="w-10 h-10 rounded-xl bg-[#099767]/10 border border-[#099767]/20 flex items-center justify-center text-[#34d399] group-hover:scale-105 transition-transform">
               <Key className="w-5 h-5" />
             </div>
             {apiKey || hasEnvKey ? (
@@ -543,7 +543,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                 تنظیم شده
               </span>
             ) : (
-              <span className="flex items-center gap-1 text-[11px] text-amber-400 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full font-medium">
+              <span className="flex items-center gap-1 text-[11px] text-[#34d399] bg-[#099767]/10 border border-[#099767]/30 px-2 py-0.5 rounded-full font-medium">
                 نیازمند کلید
               </span>
             )}
@@ -558,7 +558,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
               : 'کلید Google Gemini API خود را وارد کنید.'}
           </p>
 
-          <div className="text-[11px] text-amber-400/90 font-medium group-hover:underline flex items-center gap-1">
+          <div className="text-[11px] text-emerald-400/90 font-medium group-hover:underline flex items-center gap-1">
             <span>مدیریت و تغییر کلید &larr;</span>
           </div>
         </div>
@@ -657,7 +657,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
               </p>
 
               {videoSubNotice && (
-                <div className="mb-3 p-2 rounded-xl bg-slate-900 border border-amber-500/30 text-[11px] text-amber-300 leading-relaxed">
+                <div className="mb-3 p-2 rounded-xl bg-slate-900 border border-[#099767]/30 text-[11px] text-[#34d399] leading-relaxed">
                   {videoSubNotice}
                 </div>
               )}
@@ -1006,8 +1006,8 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
                 )}
               </button>
             ) : (
-              <div className="p-3 rounded-xl bg-slate-900/90 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+              <div className="p-3 rounded-xl bg-slate-900/90 border border-[#099767]/30 text-[#34d399] text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 text-[#34d399] shrink-0" />
                 <span>برای شروع بهینه‌سازی، ابتدا فایل ویدیو یا صوت را در بخش ۳ بالا انتخاب کنید.</span>
               </div>
             )}
@@ -1052,7 +1052,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
           <button
             type="button"
             onClick={onProceedToTranslation}
-            className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-sm font-bold transition shadow-lg shadow-amber-500/20 cursor-pointer shrink-0"
+            className="flex items-center gap-2.5 px-6 py-3 rounded-xl bg-gradient-to-r from-[#099767] to-[#077d54] hover:from-[#0ba873] hover:to-[#099767] text-white text-sm font-bold transition shadow-lg shadow-[#099767]/20 cursor-pointer shrink-0"
           >
             <span>رفتن به مرحله ۲: ترجمه و تنظیم متن</span>
             <ArrowLeft className="w-4 h-4 text-slate-950" />
