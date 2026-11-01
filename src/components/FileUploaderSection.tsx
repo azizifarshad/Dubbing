@@ -155,7 +155,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
 
       onSubtitlesLoaded(formattedItems, `${file.name} (زیرنویس Whisper)`);
       setGeneratedSrtText(data.srtText || '');
-      setAiTranscribeNotice(`✅ ${formattedItems.length} دیالوگ انگلیسی با زمان‌بندی دقیق توسط Whisper استخراج و بارگذاری شد.`);
+      setAiTranscribeNotice(`${formattedItems.length} دیالوگ انگلیسی با زمان‌بندی دقیق توسط Whisper استخراج و بارگذاری شد.`);
     } catch (err: any) {
       alert('خطا در تبدیل خودکار ویدیو به زیرنویس با Whisper: ' + (err.message || 'مشکلی رخ داد'));
     } finally {
@@ -220,7 +220,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
 
       onSubtitlesLoaded(formattedItems, `${originalAudioName || 'صوت مرجع'} (زیرنویس Whisper)`);
       setGeneratedSrtText(data.srtText || '');
-      setAiTranscribeNotice(`✅ ${formattedItems.length} دیالوگ انگلیسی با Whisper از روی صوت بخش ۳ استخراج و بارگذاری شد.`);
+      setAiTranscribeNotice(`${formattedItems.length} دیالوگ انگلیسی با Whisper از روی صوت بخش ۳ استخراج و بارگذاری شد.`);
     } catch (err: any) {
       alert('خطا در استخراج زیرنویس با Whisper: ' + (err.message || 'مشکلی رخ داد'));
     } finally {
@@ -380,7 +380,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
         const result = optimizeAndAlignSubtitlesWithAudio(subtitles, targetBuffer, { minGapSec: 0.25 });
         onSubtitlesLoaded(result.optimizedSubtitles, 'دیالوگ‌های بهینه‌سازی‌شده (بدون تداخل صوتی)');
         setTranscribeNotice(
-          `✅ زمان‌بندی ${result.optimizedSubtitles.length} دیالوگ با بررسی صوت WAV بهینه‌سازی شد. (${result.collisionResolvedCount} مورد تداخل و همپوشانی زمانی احتمالی برای خروجی روان دوبله برطرف گردید).`
+          `زمان‌بندی ${result.optimizedSubtitles.length} دیالوگ با بررسی صوت WAV بهینه‌سازی شد. (${result.collisionResolvedCount} مورد تداخل و همپوشانی زمانی احتمالی برای خروجی روان دوبله برطرف گردید).`
         );
         return;
       }
@@ -456,7 +456,7 @@ export const FileUploaderSection: React.FC<FileUploaderSectionProps> = ({
       // Enforce collision spacing
       const optimized = optimizeAndAlignSubtitlesWithAudio(finalSubtitles, targetBuffer, { minGapSec: 0.25 });
       onSubtitlesLoaded(optimized.optimizedSubtitles, `دیالوگ‌های استخراج‌شده از صوت (${targetName || 'صوت مرجع'})`);
-      setTranscribeNotice(`✅ زمان‌بندی دقیق ${optimized.optimizedSubtitles.length} دیالوگ انگلیسی بدون تداخل از صوت استخراج شد.`);
+      setTranscribeNotice(`زمان‌بندی دقیق ${optimized.optimizedSubtitles.length} دیالوگ انگلیسی بدون تداخل از صوت استخراج شد.`);
     } catch (err: any) {
       alert('خطا در تحلیل صوت: ' + (err.message || 'مشکلی رخ داد'));
     } finally {

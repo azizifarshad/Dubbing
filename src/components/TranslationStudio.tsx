@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SubtitleItem, TRANSLATION_STYLES, TranslationStyle, AVAILABLE_VOICES, GeminiVoiceId } from '../types/dubbing';
-import { Languages, Wand2, RefreshCw, CheckCircle2, Clock, Sparkles, User, AlertCircle, Loader2, Cpu, Globe, Server, FileText, Copy, Check } from 'lucide-react';
+import { Languages, Wand2, Sliders, RefreshCw, CheckCircle2, Clock, Sparkles, User, AlertCircle, Loader2, Cpu, Globe, Server, FileText, Copy, Check } from 'lucide-react';
 import { translateOfflineLocally } from '../utils/localTranslator';
 
 interface TranslationStudioProps {
@@ -13,6 +13,40 @@ interface TranslationStudioProps {
   onProceedToTTS: () => void;
   onOpenApiKeyModal?: () => void;
 }
+
+export const DEFAULT_TRANSLATION_PROMPT = `You are a professional English-to-Persian translator specializing in programming, computer science, software development, AI, and educational content.
+
+Your task is to translate English text into natural, concise, conversational Persian that sounds like a native Persian-speaking instructor explaining a topic, not someone reading from a textbook.
+
+### 1. Natural, Conversational Persian (Instructor Style - مدرس ایرانی)
+- Use simple, modern, fluent, conversational Persian.
+- Make the translation sound natural when spoken aloud in educational videos and voiceovers (e.g. use spoken conversational forms: "توی این درس می‌خوایم...", "سلام مو هستم خوش اومدید", "قراره بررسی کنیم", "می‌ریم سراغ...").
+- Avoid overly formal, literary, bookish, or unnatural phrasing (do NOT write stiff literal text like "دوباره مو هستم" or "ما قصد داریم").
+- Preserve the original meaning while restructuring sentences when necessary to make them sound natural in Persian.
+- Prefer everyday spoken expressions over formal equivalents whenever appropriate.
+
+### 2. Strict Word Count, Conciseness & Completeness (DO NOT DROP CLAUSES)
+- Use the fewest words possible while preserving the complete meaning.
+- CRITICAL: Never cut off, omit, or delete parts of the sentence! If an English sentence has multiple clauses or ideas, ALL clauses must be translated and conveyed clearly.
+- Avoid unnecessary explanations, filler words, redundant phrases, and repetitions.
+- The Persian translation must NOT contain more than 120% of the words of the original English text (e.g., if English is 10 words, Persian should be around 8 to 12 words max).
+- Whenever two translations are equally accurate, choose the shorter, punchier one.
+- Never remove important technical details, conditions, examples, warnings, or logical relationships just to meet the word limit.
+- Prioritize semantic accuracy and completeness while remaining as concise as possible.
+
+### 3. Preserve Technical Terminology in English
+- Keep established technical terms from computer science, programming, AI, networking, software engineering, and web development in their original English form.
+- Do NOT translate technical terminology into Persian just to make it sound more localized.
+- Examples: Magic Method, Class, Object, Function, Framework, API, Debugging, Runtime, Callback, Middleware, Machine Learning, Token, Prompt, VMware Player, Docker.
+
+### 4. Golden Examples:
+Example 1:
+English: "downloading and installing the VMware Player. Now, this is one of our first choice"
+Correct Persian: "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست."
+
+Example 2:
+English: "Hey, everybody, welcome back. It's Mo again. Well, this lecture what we're going to be doing is"
+Correct Persian: "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..."`;
 
 export const TranslationStudio: React.FC<TranslationStudioProps> = ({
   apiKey,
@@ -301,9 +335,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
             </span>
             <span>ترجمه تخصصی و تنظیم متن دوبله فارسی</span>
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1">
-            ترجمه پرسرعت با هوش مصنوعی (Gemini 3.8 Flash) با بیان رسا، معنای شفاف و کامل و حفظ اصطلاحات تخصصی کامپیوتر.
-          </p>
+          
         </div>
 
         {/* Translation Status Pill & Action Buttons */}
@@ -381,16 +413,13 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
         <div className="text-[11px] text-slate-400 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
           {translationEngine === 'gemini' ? (
             <span>
-              ⚡ <strong className="text-amber-300">موتور جمینای:</strong> ترجمه غنی با هوش مصنوعی، لحن محاوره‌ای صمیمی دوبلاژ و حفظ اصطلاحات فنی کامپیوتر.
+              <strong className="text-amber-300">مدل Claude Haiku 5.5:</strong> ترجمه پرسرعت با هوش مصنوعی با بیان رسا و حفظ اصطلاحات تخصصی کامپیوتر.
             </span>
           ) : (
             <span>
-              🔒 <strong className="text-emerald-300">موتور داخلی:</strong> اجرای کاملاً لوکال و بدون نیاز به اینترنت با واژه‌نامه تخصصی برنامه‌نویسی و اصطلاحات کامپیوتری.
+              <strong className="text-emerald-300">مدل داخلی:</strong> اجرای کاملاً لوکال و بدون نیاز به اینترنت
             </span>
           )}
-          <span className="text-slate-500 text-[10px]">
-            مدل پیشنهادی HuggingFace (Hy-MT2 1.8B): ۴.۰۸ گیگابایت (نیازمند دانلود در اولین بار)
-          </span>
         </div>
       </div>
 
@@ -631,9 +660,9 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
                           }
                         >
                           {isExceedingBudget ? (
-                            <span>⚠️ {faWords} کلمه ({wordRatio}٪ - سقف: {maxAllowedWords})</span>
+                            <span>{faWords} کلمه ({wordRatio}٪ - سقف: {maxAllowedWords})</span>
                           ) : (
-                            <span>✅ {faWords} کلمه ({wordRatio}٪ - منطبق)</span>
+                            <span>{faWords} کلمه ({wordRatio}٪ - منطبق)</span>
                           )}
                         </span>
                       )}
@@ -685,61 +714,71 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
         </div>
       )}
 
-      {/* Prompt Inspector Modal */}
+      {/* Prompt Editor Modal */}
       {showPromptModal && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl max-w-3xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
             <div className="px-5 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/60">
-              <div className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-amber-400" />
-                <h3 className="font-bold text-slate-200 text-sm">پرامپت اختصاصی سیستم برای ترجمه و دوبلاژ</h3>
+              <div className="flex items-center gap-2.5">
+                <Sliders className="w-5 h-5 text-amber-400" />
+                <div>
+                  <h3 className="font-bold text-slate-200 text-sm">ویرایش و تنظیم پرامپت ترجمه (Claude Haiku 5.5)</h3>
+                  <p className="text-[11px] text-slate-400 mt-0.5">دستورالعمل هوش مصنوعی برای لحن محاوره‌ای مدرس، رعایت سقف کلمات و حفظ اصطلاحات انگلیسی</p>
+                </div>
               </div>
+              <button
+                type="button"
+                onClick={() => setShowPromptModal(false)}
+                className="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg hover:bg-slate-800 text-sm transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 overflow-y-auto space-y-3 bg-slate-950/80 flex-1 flex flex-col">
+              <div className="flex items-center justify-between text-xs text-slate-400">
+                <span>متن پرامپت سیستمی ترجمه:</span>
+                <span className="font-mono text-[11px] text-slate-500">کاراکتر: {editedPrompt.length}</span>
+              </div>
+
+              <textarea
+                value={editedPrompt}
+                onChange={(e) => setEditedPrompt(e.target.value)}
+                rows={13}
+                dir="ltr"
+                className="w-full bg-slate-900 border border-slate-700/80 rounded-xl p-4 font-mono text-xs text-slate-200 focus:outline-none focus:border-amber-400 leading-relaxed resize-y selection:bg-amber-500/30 selection:text-white"
+                placeholder="پرامپت ترجمه را وارد کنید..."
+              />
+
+              {promptSavedAlert && (
+                <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>پرامپت با موفقیت ذخیره شد و در ترجمه‌های بعدی اعمال خواهد شد.</span>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-5 py-3 border-t border-slate-800 bg-slate-950/60 flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <button
                   type="button"
+                  onClick={() => setEditedPrompt(DEFAULT_TRANSLATION_PROMPT)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition border border-slate-700/60"
+                >
+                  بازنشانی به پیش‌فرض
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => {
-                    const fullPromptText = `You are a professional English-to-Persian translator specializing in programming, computer science, software development, AI, and educational content.
-
-Your task is to translate English text into natural, concise, conversational Persian that sounds like a native Persian-speaking instructor explaining a topic, not someone reading from a textbook.
-
-### 1. Natural, Conversational Persian (Instructor Style - مدرس ایرانی)
-- Use simple, modern, fluent, conversational Persian.
-- Make the translation sound natural when spoken aloud in educational videos and voiceovers (e.g. use spoken conversational forms: "توی این درس می‌خوایم...", "سلام مو هستم خوش اومدید", "قراره بررسی کنیم", "می‌ریم سراغ...").
-- Avoid overly formal, literary, bookish, or unnatural phrasing (do NOT write stiff literal text like "دوباره مو هستم" or "ما قصد داریم").
-- Preserve the original meaning while restructuring sentences when necessary to make them sound natural in Persian.
-- Prefer everyday spoken expressions over formal equivalents whenever appropriate.
-
-### 2. Strict Word Count, Conciseness & Completeness (DO NOT DROP CLAUSES)
-- Use the fewest words possible while preserving the complete meaning.
-- CRITICAL: Never cut off, omit, or delete parts of the sentence! If an English sentence has multiple clauses or ideas, ALL clauses must be translated and conveyed clearly.
-- Avoid unnecessary explanations, filler words, redundant phrases, and repetitions.
-- The Persian translation must NOT contain more than 120% of the words of the original English text (e.g., if English is 10 words, Persian should be around 8 to 12 words max).
-- Whenever two translations are equally accurate, choose the shorter, punchier one.
-- Never remove important technical details, conditions, examples, warnings, or logical relationships just to meet the word limit.
-- Prioritize semantic accuracy and completeness while remaining as concise as possible.
-
-### 3. Preserve Technical Terminology in English
-- Keep established technical terms from computer science, programming, AI, networking, software engineering, and web development in their original English form.
-- Do NOT translate technical terminology into Persian just to make it sound more localized.
-- Examples: Magic Method, Class, Object, Function, Framework, API, Debugging, Runtime, Callback, Middleware, Machine Learning, Token, Prompt, VMware Player, Docker.
-
-### 4. Semantic Accuracy & Completeness
-- Preserve the original meaning, intent, technical accuracy, and logical relationships.
-- Do not omit important details, examples, conditions, warnings, or second clauses.
-
-### 5. Golden Examples (Follow these patterns strictly):
-Example 1:
-English: "downloading and installing the VMware Player. Now, this is one of our first choice"
-CORRECT: "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست." ✅
-
-Example 2:
-English: "Hey, everybody, welcome back. It's Mo again. Well, this lecture what we're going to be doing is"
-CORRECT: "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..." ✅`;
-                    navigator.clipboard.writeText(fullPromptText);
+                    navigator.clipboard.writeText(editedPrompt);
                     setCopiedPrompt(true);
                     setTimeout(() => setCopiedPrompt(false), 2000);
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs transition"
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition border border-slate-700/60"
                 >
                   {copiedPrompt ? (
                     <>
@@ -753,61 +792,33 @@ CORRECT: "سلام مو هستم خوش اومدید، توی این درس می
                     </>
                   )}
                 </button>
+              </div>
+
+              <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => setShowPromptModal(false)}
-                  className="text-slate-400 hover:text-slate-200 p-1 rounded-lg hover:bg-slate-800 text-sm"
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 text-xs transition"
                 >
-                  ✕
+                  بستن
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomPrompt(editedPrompt);
+                    localStorage.setItem('vidans_custom_translation_prompt', editedPrompt);
+                    setPromptSavedAlert(true);
+                    setTimeout(() => {
+                      setShowPromptModal(false);
+                      setPromptSavedAlert(false);
+                    }, 800);
+                  }}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs transition shadow-md shadow-amber-500/20"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>ذخیره و اعمال پرامپت</span>
                 </button>
               </div>
-            </div>
-
-            <div className="p-5 overflow-y-auto space-y-4 text-xs font-mono leading-relaxed bg-slate-950/80 text-slate-300">
-              <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 font-sans text-xs">
-                این دقیقاً همان پرامپتی است که به مدل‌های Gemini در سرور ارسال می‌شود تا ترجمه مثل مدرس ایرانی صمیمی، کامل (بدون ناقص ماندن جملات)، با حفظ واژگان انگلیسی و با سقف تعداد کلمات انجام گیرد.
-              </div>
-
-              <div className="bg-slate-900 border border-slate-800 p-4 rounded-xl whitespace-pre-wrap select-all font-mono text-[11px] text-slate-300">
-{`You are a professional English-to-Persian translator specializing in programming, computer science, software development, AI, and educational content.
-
-Your task is to translate English text into natural, concise, conversational Persian that sounds like a native Persian-speaking instructor explaining a topic, not someone reading from a textbook.
-
-### 1. Natural, Conversational Persian (Instructor Style - مدرس ایرانی)
-- Use simple, modern, fluent, conversational Persian.
-- Make the translation sound natural when spoken aloud in educational videos and voiceovers (e.g. use spoken conversational forms: "توی این درس می‌خوایم...", "سلام مو هستم خوش اومدید", "قراره بررسی کنیم").
-- Avoid overly formal, literary, bookish, or unnatural phrasing (do NOT write stiff literal text like "دوباره مو هستم").
-- Preserve the original meaning while restructuring sentences when necessary to make them sound natural in Persian.
-
-### 2. Strict Word Count, Conciseness & Completeness (DO NOT DROP CLAUSES)
-- Use the fewest words possible while preserving the complete meaning.
-- CRITICAL: Never cut off, omit, or delete parts of the sentence! If an English sentence has multiple clauses or ideas, ALL clauses must be translated and conveyed clearly.
-- The Persian translation must NOT contain more than 120% of the words of the original English text.
-- Never remove important technical details, conditions, examples, warnings, or logical relationships just to meet the word limit.
-- Prioritize semantic accuracy and completeness while remaining as concise as possible.
-
-### 3. Preserve Technical Terminology in English
-- Keep established technical terms in their original English form (VMware Player, Magic Method, Class, Object, Function, API, Debugging, Runtime, etc.).
-
-### 4. Golden Examples:
-Example 1:
-English: "downloading and installing the VMware Player. Now, this is one of our first choice"
-CORRECT: "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست." ✅
-
-Example 2:
-English: "Hey, everybody, welcome back. It's Mo again. Well, this lecture what we're going to be doing is"
-CORRECT: "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..." ✅`}
-              </div>
-            </div>
-
-            <div className="px-5 py-3 border-t border-slate-800 bg-slate-950/60 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowPromptModal(false)}
-                className="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs"
-              >
-                بستن
-              </button>
             </div>
           </div>
         </div>

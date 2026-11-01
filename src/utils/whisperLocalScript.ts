@@ -4,14 +4,14 @@
  */
 
 export const PYTHON_WHISPER_SCRIPT = `# ==============================================================================
-# 🎙️ استخراج فوق دقیق زیرنویس انگلیسی با Whisper Large-v3 محلی (Local AI)
+# استخراج فوق دقیق زیرنویس انگلیسی با Whisper Large-v3 محلی (Local AI)
 # مخصوص استودیوی دوبله فیلم و ویدیوهای آموزشی
 # ==============================================================================
 # این اسکریپت با سرعت بالا و بالاترین دقت مدل Whisper Large-v3 را روی سیستم شما
 # (با کارت گرافیک NVIDIA یا پردازنده CPU) اجرا می‌کند و فایل SRT زمان‌بندی‌شده
 # کاملاً هماهنگ برای دوبله تولید می‌نماید.
 #
-# 📦 پیش‌نیازها (فقط یک‌بار در ترمینال یا CMD اجرا کنید):
+# پیش‌نیازها (فقط یک‌بار در ترمینال یا CMD اجرا کنید):
 # pip install faster-whisper
 # (برای شتاب‌دهنده کارت گرافیک انویدیا):
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
@@ -41,7 +41,7 @@ def extract_srt_whisper(
     input_path = Path(video_or_audio_path.strip().strip('"').strip("'"))
     
     if not input_path.exists():
-        print(f"❌ فایل ورودی پیدا نشد: {input_path}")
+        print(f"[خطا] فایل ورودی پیدا نشد: {input_path}")
         return None
 
     if output_srt_path is None:
@@ -50,16 +50,16 @@ def extract_srt_whisper(
         output_srt_path = Path(output_srt_path.strip().strip('"').strip("'"))
 
     print("=" * 65)
-    print("🎬 شروع فرآیند استخراج زیرنویس انگلیسی برای دوبله...")
-    print(f"📁 فایل ورودی: {input_path.name}")
-    print(f"🧠 مدل انتخابی: Whisper {model_size}")
+    print("شروع فرآیند استخراج زیرنویس انگلیسی برای دوبله...")
+    print(f"فایل ورودی: {input_path.name}")
+    print(f"مدل انتخابی: Whisper {model_size}")
     print("=" * 65)
 
     try:
         from faster_whisper import WhisperModel
     except ImportError:
-        print("\n❌ کتابخانه faster-whisper نصب نیست!")
-        print("💡 لطفاً دستور زیر را در CMD یا ترمینال اجرا کنید:")
+        print("\n[خطا] کتابخانه faster-whisper نصب نیست!")
+        print("لطفاً دستور زیر را در CMD یا ترمینال اجرا کنید:")
         print("   pip install faster-whisper\n")
         return None
 
@@ -72,11 +72,11 @@ def extract_srt_whisper(
             device = "cuda"
             compute_type = "float16"
             gpu_name = torch.cuda.get_device_name(0)
-            print(f"⚡ شتاب‌دهنده فعال: کارت گرافیک {gpu_name} (CUDA - float16)")
+            print(f"شتاب‌دهنده فعال: کارت گرافیک {gpu_name} (CUDA - float16)")
         else:
-            print("💻 شتاب‌دهنده: پردازنده اصلی سیستم (CPU - int8 بهینه شده)")
+            print("شتاب‌دهنده: پردازنده اصلی سیستم (CPU - int8 بهینه شده)")
     except Exception:
-        print("💻 شتاب‌دهنده: پردازنده اصلی سیستم (CPU - int8 بهینه شده)")
+        print("شتاب‌دهنده: پردازنده اصلی سیستم (CPU - int8 بهینه شده)")
 
     print(f"\n⏳ در حال بارگذاری مدل {model_size} (بار اول ممکن است چند دقیقه طول بکشد)...")
     start_time = time.time()
@@ -84,11 +84,11 @@ def extract_srt_whisper(
     try:
         model = WhisperModel(model_size, device=device, compute_type=compute_type)
     except Exception as e:
-        print(f"⚠️ هشدار در بارگذاری روی {device}: {e}")
-        print("🔄 تلاش مجدد با حالت پردازنده CPU...")
+        print(f"هشدار در بارگذاری روی {device}: {e}")
+        print("تلاش مجدد با حالت پردازنده CPU...")
         model = WhisperModel(model_size, device="cpu", compute_type="int8")
 
-    print("🎧 در حال شنیدن و ترنسکرایب دیالوگ‌ها با زمان‌بندی دقیق میلی‌ثانیه‌ای...")
+    print("در حال شنیدن و ترنسکرایب دیالوگ‌ها با زمان‌بندی دقیق میلی‌ثانیه‌ای...")
     
     # فیلتر هوشمند VAD برای حذف سکوت‌ها و جلوگیری از تکرار در زمان موسیقی پس‌زمینه
     segments, info = model.transcribe(
@@ -101,7 +101,7 @@ def extract_srt_whisper(
         vad_parameters=dict(min_silence_duration_ms=400)
     )
 
-    print(f"🗣️ زبان شناسایی شده: {info.language.upper()} (دقت: {info.language_probability * 100:.1f}%)")
+    print(f"زبان شناسایی شده: {info.language.upper()} (دقت: {info.language_probability * 100:.1f}%)")
     print(f"⏱️ طول فایل: {info.duration:.1f} ثانیه\n")
 
     srt_lines = []
@@ -124,12 +124,12 @@ def extract_srt_whisper(
 
     elapsed = time.time() - start_time
     print("\\n" + "=" * 65)
-    print(f"🎉 استخراج با موفقیت تمام شد! تعداد دیالوگ‌ها: {segment_count}")
+    print(f"استخراج با موفقیت تمام شد! تعداد دیالوگ‌ها: {segment_count}")
     print(f"⏱️ زمان پردازش: {elapsed:.1f} ثانیه")
-    print(f"📄 فایل خروجی SRT:")
-    print(f"👉 {output_srt_path.resolve()}")
+    print(f"فایل خروجی SRT:")
+    print(f"{output_srt_path.resolve()}")
     print("=" * 65)
-    print("✅ اکنون می‌توانید این فایل .srt را در وب‌اپلیکیشن بارگذاری کنید.")
+    print("اکنون می‌توانید این فایل .srt را در وب‌اپلیکیشن بارگذاری کنید.")
     return output_srt_path
 
 # ==============================================================================
@@ -137,18 +137,18 @@ def extract_srt_whisper(
 # ==============================================================================
 if __name__ == "__main__":
     print("****************************************************************")
-    print("🎙️ ابزار استخراج زیرنویس انگلیسی Whisper Large-v3 محلی برای دوبله")
+    print("ابزار استخراج زیرنویس انگلیسی Whisper Large-v3 محلی برای دوبله")
     print("****************************************************************\\n")
     
     if len(sys.argv) > 1:
         video_input = sys.argv[1]
     else:
-        video_input = input("📍 آدرس فایل ویدیو یا صوت را وارد کنید (می‌توانید فایل را داخل این پنجره بکشید): ").strip()
+        video_input = input("آدرس فایل ویدیو یا صوت را وارد کنید (می‌توانید فایل را داخل این پنجره بکشید): ").strip()
     
     if video_input:
         extract_srt_whisper(video_input)
     else:
-        print("❌ آدرسی وارد نشد.")
+        print("[خطا] آدرسی وارد نشد.")
     
     input("\\nبرای خروج کلید Enter را فشار دهید...")
 `;

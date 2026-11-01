@@ -695,15 +695,9 @@ const STYLE_INSTRUCTIONS: Record<string, string> = {
   energetic: 'پرهیجان، پرانرژی و اکشن مناسب برای انیمیشن‌ها و ویدیوهای آموزشی پرانرژی',
 };
 
-// Global prompt builder for subtitles
-function buildPromptForLines(subsetLines: Array<any>, style: string = 'colloquial'): string {
-  const selectedStyle = STYLE_INSTRUCTIONS[style] || STYLE_INSTRUCTIONS.colloquial;
-
-  return `You are a professional English-to-Persian translator specializing in programming, computer science, software development, AI, and educational content.
+export const DEFAULT_TRANSLATION_PROMPT = `You are a professional English-to-Persian translator specializing in programming, computer science, software development, AI, and educational content.
 
 Your task is to translate English text into natural, concise, conversational Persian that sounds like a native Persian-speaking instructor explaining a topic, not someone reading from a textbook.
-
-Tone and Dubbing Style: ${selectedStyle}
 
 ### 1. Natural, Conversational Persian (Instructor Style - مدرس ایرانی)
 - Use simple, modern, fluent, conversational Persian.
@@ -716,22 +710,37 @@ Tone and Dubbing Style: ${selectedStyle}
 - Use the fewest words possible while preserving the complete meaning.
 - CRITICAL: Never cut off, omit, or delete parts of the sentence! If an English sentence has multiple clauses or ideas, ALL clauses must be translated and conveyed clearly.
 - Avoid unnecessary explanations, filler words, redundant phrases, and repetitions.
-- The Persian translation must NOT contain more than 120% of the words of the original English text.
-- Treat this budget as a guideline for conciseness: before returning the translation, check the word count.
+- The Persian translation must NOT contain more than 120% of the words of the original English text (e.g., if English is 10 words, Persian should be around 8 to 12 words max).
 - Whenever two translations are equally accurate, choose the shorter, punchier one.
 - Never remove important technical details, conditions, examples, warnings, or logical relationships just to meet the word limit.
 - Prioritize semantic accuracy and completeness while remaining as concise as possible.
 
 ### 3. Preserve Technical Terminology in English
-- Keep established technical terms from computer science, programming, AI, networking, software engineering, and web development in their original English form (e.g. Magic Method, Class, Object, Function, Framework, API, Endpoint, Debugging, Runtime, Callback, Middleware, Machine Learning, Neural Network, Token, Prompt, Array, String, Loop, Database, Query, Frontend, Backend, Fullstack, Docker, Linux, VS Code).
-- Do not translate an entire sentence into English. Keep the surrounding explanation in natural Persian while retaining technical terms in English.
+- Keep established technical terms from computer science, programming, AI, networking, software engineering, and web development in their original English form.
+- Do NOT translate technical terminology into Persian just to make it sound more localized.
+- Examples: Magic Method, Class, Object, Function, Framework, API, Debugging, Runtime, Callback, Middleware, Machine Learning, Token, Prompt, VMware Player, Docker.
 
-### 4. Semantic Accuracy & Completeness
-- Preserve the original meaning, intent, technical accuracy, and logical relationships.
-- Do not omit important details, examples, conditions, warnings, or second clauses.
-- Preserve names, numbers, values, code, and technical references accurately.
+### 4. Golden Examples:
+Example 1:
+English: "downloading and installing the VMware Player. Now, this is one of our first choice"
+Correct Persian: "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست."
 
-### 5. Output Rules
+Example 2:
+English: "Hey, everybody, welcome back. It's Mo again. Well, this lecture what we're going to be doing is"
+Correct Persian: "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..."`;
+
+// Global prompt builder for subtitles
+function buildPromptForLines(subsetLines: Array<any>, style: string = 'colloquial', customPrompt?: string): string {
+  const selectedStyle = STYLE_INSTRUCTIONS[style] || STYLE_INSTRUCTIONS.colloquial;
+  const basePrompt = (customPrompt && customPrompt.trim().length > 0)
+    ? customPrompt.trim()
+    : DEFAULT_TRANSLATION_PROMPT;
+
+  return `${basePrompt}
+
+Tone and Dubbing Style: ${selectedStyle}
+
+### Output Rules:
 - You MUST return a JSON object with a single key "translations", which is an array of objects.
 - Each object must have:
   "id": segment integer ID
@@ -757,14 +766,15 @@ ${JSON.stringify(
 async function translateWithHormouz(
   lines: Array<{ id: number; text: string; start: number; end: number; duration: number; englishWordCount: number; maxBudgetWords: number }>,
   style: string,
-  config: ApiRuntimeConfig
+  config: ApiRuntimeConfig,
+  customPrompt?: string
 ): Promise<Array<{ id: number; farsiText: string; characterEmotion?: string; suggestedGender?: string }>> {
   const CHUNK_SIZE = 20;
   const allTranslations: Array<{ id: number; farsiText: string; characterEmotion?: string; suggestedGender?: string }> = [];
 
   for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
     const chunk = lines.slice(i, i + CHUNK_SIZE);
-    const promptText = buildPromptForLines(chunk, style);
+    const promptText = buildPromptForLines(chunk, style, customPrompt);
 
     console.log(`[Hormouz Translate] Requesting model "${config.translationModel}" at ${config.baseUrl} for lines ${chunk[0].id}..${chunk[chunk.length - 1].id}...`);
 
@@ -1425,7 +1435,7 @@ async function translateWithFallbackEngine(lines: Array<{ id: number; text: stri
 
 // 2. Translate English Subtitle Lines to Persian Dubbing Dialogue with High Speed & Semantic Clarity
 app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
-  const { lines, style = 'colloquial', context = '' } = req.body;
+  const { lines, style = 'colloquial', context = '', customPrompt } = req.body;
   const config = getApiConfig(req);
 
   if (!Array.isArray(lines) || lines.length === 0) {
@@ -1455,7 +1465,7 @@ app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
   // Branch A: Hormouz AI or OpenAI-compatible gateway
   if (config.isHormouzOrOpenAI && config.hasKey) {
     try {
-      const translations = await translateWithHormouz(simpleLines, selectedStyle, config);
+      const translations = await translateWithHormouz(simpleLines, selectedStyle, config, customPrompt);
       return res.json({
         success: true,
         translations,
@@ -1501,97 +1511,7 @@ app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
 
   try {
 
-    const buildPromptForLines = (subsetLines: Array<any>) => `You are a professional English-to-Persian translator specializing in programming, computer science, software development, AI, and educational content.
-
-Your task is to translate English text into natural, concise, conversational Persian that sounds like a native Persian-speaking instructor explaining a topic, not someone reading from a textbook.
-
-### 1. Natural, Conversational Persian (Instructor Style - مدرس ایرانی)
-- Use simple, modern, fluent, conversational Persian.
-- Make the translation sound natural when spoken aloud in educational videos and voiceovers (e.g. use spoken conversational forms: "توی این درس می‌خوایم...", "سلام مو هستم خوش اومدید", "قراره بررسی کنیم", "می‌ریم سراغ...").
-- Avoid overly formal, literary, bookish, or unnatural phrasing (do NOT write stiff literal text like "دوباره مو هستم" or "ما قصد داریم").
-- Preserve the original meaning while restructuring sentences when necessary to make them sound natural in Persian.
-- Prefer everyday spoken expressions over formal equivalents whenever appropriate.
-
-### 2. Strict Word Count, Conciseness & Completeness (DO NOT DROP CLAUSES)
-- Use the fewest words possible while preserving the complete meaning.
-- CRITICAL: Never cut off, omit, or delete parts of the sentence! If an English sentence has multiple clauses or ideas, ALL clauses must be translated and conveyed clearly.
-- Avoid unnecessary explanations, filler words, redundant phrases, and repetitions.
-- The Persian translation must NOT contain more than 120% of the words of the original English text (e.g., if English is 10 words, Persian should be around 8 to 12 words max).
-- Treat this budget as a guideline for conciseness: before returning the translation, check the word count.
-- Whenever two translations are equally accurate, choose the shorter, punchier one.
-- Never remove important technical details, conditions, examples, warnings, or logical relationships just to meet the word limit. Instead, rewrite the sentence more concisely.
-- Prioritize semantic accuracy and completeness while remaining as concise as possible.
-
-### 3. Preserve Technical Terminology in English
-- Keep established technical terms from computer science, programming, AI, networking, software engineering, and web development in their original English form.
-- Do NOT translate technical terminology into Persian just to make it sound more localized.
-- Examples:
-  - Magic Method → Magic Method (NOT "متد جادویی")
-  - Class → Class
-  - Object → Object
-  - Function → Function
-  - Framework → Framework
-  - API / Endpoint → API / Endpoint
-  - Debugging → Debugging
-  - Runtime → Runtime
-  - Callback → Callback
-  - Middleware → Middleware
-  - Machine Learning → Machine Learning
-  - Neural Network → Neural Network
-  - Token → Token
-  - Prompt → Prompt
-  - Method / Constructor → Method / Constructor
-  - Array / String / Loop → Array / String / Loop
-  - Database / Query → Database / Query
-  - Frontend / Backend / Fullstack → Frontend / Backend / Fullstack
-  - VMware Player / Docker / Linux / VS Code → VMware Player / Docker / Linux / VS Code
-- Preserve the exact spelling and capitalization of software tools, class names, function names, and code identifiers.
-- Do not translate an entire sentence into English. Keep the surrounding explanation in natural Persian while retaining technical terms in English.
-
-### 4. Semantic Accuracy & Completeness
-- Preserve the original meaning, intent, technical accuracy, and logical relationships.
-- Do not add explanations or assumptions that the original speaker did not provide.
-- Do not omit important details, examples, conditions, warnings, or second clauses.
-- Preserve names, numbers, values, code, and technical references accurately.
-
-### 5. Voiceover and Subtitle Optimization
-- Write short, easy-to-speak sentences suitable for voiceover and dubbing.
-- Avoid awkward phrasing, unnecessarily complex sentence structures, and difficult-to-pronounce constructions.
-- Keep the translation reasonably close to the original sentence length and speaking rhythm.
-
-### 6. Golden Examples (Follow these patterns strictly):
-Example 1:
-English: "downloading and installing the VMware Player. Now, this is one of our first choice"
-WRONG (Dropped the second clause): "دانلود و نصب VMware Player." ❌ (Missing critical meaning!)
-CORRECT (Conversational & Complete): "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست." ✅
-
-Example 2:
-English: "Hey, everybody, welcome back. It's Mo again. Well, this lecture what we're going to be doing is"
-WRONG (Stiff & chopped off): "سلام، خوش اومدید، دوباره مو هستم." ❌
-CORRECT (Natural Instructor Style): "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..." ✅
-
-Example 3:
-English: "In this function we handle the callback and catch any runtime error."
-CORRECT: "توی این Function، کال‌بک (Callback) رو هندل می‌کنیم و جلوی Runtime Error رو می‌گیریم." ✅
-
-### 7. Output Rules
-- Provide the translation for each subtitle line matching its exact ID in the JSON response.
-- Do not include introductions, headings, explanations, analysis, or notes.
-- Keep technical terms in English within the Persian translation.
-
-Lines to translate:
-${JSON.stringify(
-  subsetLines.map((s) => ({
-    id: s.id,
-    englishText: s.text,
-    durationSeconds: s.duration,
-    englishWordCount: s.englishWordCount,
-    maxPersianWordsAllowed: s.maxBudgetWords,
-  })),
-  null,
-  2
-)}
-`;
+    // Uses global buildPromptForLines with customPrompt
 
     const translationSchema = {
       type: Type.OBJECT,
@@ -1622,7 +1542,7 @@ ${JSON.stringify(
 
     for (let i = 0; i < simpleLines.length; i += CHUNK_SIZE) {
       const chunk = simpleLines.slice(i, i + CHUNK_SIZE);
-      const promptText = buildPromptForLines(chunk);
+      const promptText = buildPromptForLines(chunk, selectedStyle, customPrompt);
 
       let chunkResponse: any = null;
       let chunkError: any = null;
@@ -2048,7 +1968,7 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🎙️ استودیو دوبله هوشمند فارسی فعال شد: http://localhost:${PORT}`);
+    console.log(`Vidans: http://localhost:${PORT}`);
   });
 }
 

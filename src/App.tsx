@@ -170,7 +170,7 @@ export default function App() {
     {
       num: 3,
       titleFa: 'صداپیشگی هوش مصنوعی',
-      descFa: 'تولید صدای دوبلورها با Gemini TTS',
+      descFa: 'تولید صدای دوبلورها با هوش مصنوعی',
       icon: Mic2,
       isCompleted: subtitles.length > 0 && readyVoicesCount === subtitles.length,
     },
@@ -203,21 +203,14 @@ export default function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Hero Introduction & Quick Tour */}
-        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-amber-500/10 via-slate-900 to-slate-900 border border-slate-800 p-6 sm:p-8">
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-emerald-500/10 via-slate-900 to-slate-900 border border-slate-800 p-6 sm:p-7">
           <div className="relative z-10 max-w-3xl">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs font-semibold mb-3">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>سیستم خودکار دوبلاژ و صداپیشگی سینمایی فارسی</span>
-            </div>
-            <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight tracking-tight mb-2">
-              فیلم‌های خارجی را در چند دقیقه به صورت حرفه‌ای به زبان فارسی دوبله کنید
+            <h2 className="text-2xl sm:text-3xl font-black text-white leading-tight tracking-tight">
+              در پنج مرحله فایل دوبله شما آماده است
             </h2>
-            <p className="text-sm text-slate-400 leading-relaxed">
-              فقط کافیست زیرنویس انگلیسی <span className="text-amber-400 font-mono">.srt</span> و صوت فیلم <span className="text-amber-400 font-mono">.mp3/.wav</span> را وارد کنید؛ هوش مصنوعی دیالوگ‌ها را متناسب با لب‌خوانی ترجمه کرده، با صدای گویندگان فارسی ضبط نموده و با داکینگ هوشمند یک فایل صوتی دوبله کامل تحویل می‌دهد.
-            </p>
           </div>
 
-          <div className="absolute -left-12 -bottom-12 w-64 h-64 bg-amber-500/5 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -left-12 -bottom-12 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
         </div>
 
         {/* Stepper Navigation Bar */}
@@ -400,15 +393,11 @@ export default function App() {
 
       {/* Footer */}
       <footer className="border-t border-slate-800/60 bg-slate-950 py-6 text-center text-xs text-slate-500 mt-12">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span>استودیو دوبله هوشمند فارسی</span>
-            <span>&bull;</span>
-            <span className="text-slate-400">قدرت‌گرفته از Gemini 3.8 Flash و Gemini 3.8 TTS</span>
-          </div>
-          <div className="text-slate-600 text-[11px]">
-            تولید صدای استودیویی 16-bit PCM WAV با همگام‌سازی میلی‌ثانیه‌ای
-          </div>
+        <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
+          <span className="flex items-center gap-2 text-slate-400">
+            <img src="/logo.png" alt="Vidans" className="w-4 h-4 rounded-full" />
+            Vidans
+          </span>
         </div>
       </footer>
 

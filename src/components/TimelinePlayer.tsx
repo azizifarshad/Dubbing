@@ -820,7 +820,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
           <div className="flex items-center gap-3">
             <span className="font-bold text-slate-300 flex items-center gap-1.5">
               <MoveHorizontal className="w-4 h-4 text-amber-400" />
-              <span>خط زمان چندترکه (Multi-Track Timeline):</span>
+              <span>خط زمان (Timeline):</span>
             </span>
             <span className="text-slate-500 text-[11px] hidden sm:inline">
               روی ترک صوت دوبله کلیک کنید یا آن را به چپ/راست بکشید تا سینک شود

@@ -47,7 +47,7 @@ def video_to_wav(video_path, output_path=None):
 
     # بررسی وجود ویدیو
     if not video_path.exists():
-        print(f"❌ فایل ویدیو پیدا نشد: {video_path}")
+        print(f"[خطا] فایل ویدیو پیدا نشد: {video_path}")
         return None
 
     # اگر مسیر خروجی مشخص نشده باشد، فایل WAV کنار ویدیو ساخته میشود
@@ -68,17 +68,17 @@ def video_to_wav(video_path, output_path=None):
     ]
 
     try:
-        print("\\n⏳ در حال تبدیل ویدیو به WAV استاندارد...")
-        print(f"🎬 ورودی: {video_path}")
+        print("\\nدر حال تبدیل ویدیو به WAV استاندارد...")
+        print(f"ورودی: {video_path}")
         subprocess.run(command, check=True)
-        print("\\n✅ تبدیل با موفقیت انجام شد!")
-        print(f"🎵 فایل صوتی خروجی: {output_path}")
+        print("\\nتبدیل با موفقیت انجام شد!")
+        print(f"فایل صوتی خروجی: {output_path}")
         return output_path
     except subprocess.CalledProcessError as e:
-        print(f"\\n❌ هنگام تبدیل FFmpeg خطایی رخ داد: {e}")
+        print(f"\\n[خطا] هنگام تبدیل FFmpeg خطایی رخ داد: {e}")
         return None
     except FileNotFoundError:
-        print("\\n❌ برنامه FFmpeg در مسیر یافت نشد. لطفاً FFmpeg را نصب یا مسیر آن را تنظیم کنید.")
+        print("\\n[خطا] برنامه FFmpeg در مسیر یافت نشد. لطفاً FFmpeg را نصب یا مسیر آن را تنظیم کنید.")
         return None
 
 if __name__ == "__main__":

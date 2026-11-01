@@ -16,25 +16,18 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   return (
     <header className="border-b border-slate-800/80 bg-slate-900/60 backdrop-blur-md sticky top-0 z-30">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
-        {/* Brand & Title */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">        {/* Brand & Title */}
         <div className="flex items-center gap-3">
-          <div className="w-11 h-11 rounded-xl bg-gradient-to-tr from-amber-500 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/20 text-slate-950">
-            <Mic2 className="w-6 h-6 stroke-[2.2]" />
+          <div className="relative">
+            <img
+              src="/logo.png"
+              alt="Vidans Logo"
+              className="w-11 h-11 rounded-full object-cover shadow-lg shadow-emerald-500/20 ring-2 ring-emerald-500/30 transition-transform hover:scale-105"
+            />
           </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                استودیو دوبله هوشمند فارسی
-              </h1>
-              <span className="text-[11px] px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 font-medium">
-                هرمز / AI Studio
-              </span>
-            </div>
-            <p className="text-xs text-slate-400">
-              ترجمه زیرنویس انگلیسی، صداپیشگی هوشمند و ساخت فایل صوتی دوبله همگام با فیلم
-            </p>
-          </div>
+          <h1 className="text-2xl font-black tracking-tight text-white">
+            Vidans
+          </h1>
         </div>
 
         {/* Action Controls & API Key */}

@@ -329,7 +329,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-amber-500 transition"
               />
               <p className="text-[10px] text-amber-400/90 leading-relaxed">
-                ⚠️ اگر ارور ۴۰۳ دریافت کردید، بررسی کنید در پنل هرمز (app.hormouz.net/keys) تیک مجاز بودن کدام مدل چت/ترجمه برای این کلید فعال است و نام دقیق آن را اینجا قرار دهید.
+                اگر ارور ۴۰۳ دریافت کردید، بررسی کنید در پنل هرمز (app.hormouz.net/keys) تیک مجاز بودن کدام مدل چت/ترجمه برای این کلید فعال است و نام دقیق آن را اینجا قرار دهید.
               </p>
             </div>
 
