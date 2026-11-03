@@ -31,7 +31,10 @@ export default function App() {
   });
   const [translationModel, setTranslationModel] = useState<string>(() => {
     const saved = localStorage.getItem('persian_dub_translation_model');
-    if (!saved || saved === 'OpenAI: GPT-6 Luna') return 'Anthropic: Claude Haiku 5.5';
+    if (!saved || saved === 'OpenAI: GPT-6 Luna' || saved === 'Anthropic: Claude Haiku 5.5' || saved.toLowerCase().includes('gpt-4')) {
+      localStorage.setItem('persian_dub_translation_model', 'openai/gpt-6-luna');
+      return 'openai/gpt-6-luna';
+    }
     return saved;
   });
   const [ttsModel, setTtsModel] = useState<string>(() => {
@@ -49,6 +52,7 @@ export default function App() {
   const [originalAudioName, setOriginalAudioName] = useState<string>('');
   const [originalAudioDuration, setOriginalAudioDuration] = useState<number>(0);
   const [originalAudioBlobUrl, setOriginalAudioBlobUrl] = useState<string | null>(null);
+  const [originalVideoFile, setOriginalVideoFile] = useState<File | null>(null);
 
   // 4. Mixing and exported master track states
   const [outputBaseName, setOutputBaseName] = useState<string>('');

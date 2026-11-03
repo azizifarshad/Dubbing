@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SubtitleItem, TRANSLATION_STYLES, TranslationStyle, AVAILABLE_VOICES, GeminiVoiceId } from '../types/dubbing';
-import { Languages, Wand2, Sliders, RefreshCw, CheckCircle2, Clock, Sparkles, User, AlertCircle, Loader2, Cpu, Globe, Server, FileText, Copy, Check, X } from 'lucide-react';
+import { Bot, Languages, Wand2, Sliders, RefreshCw, CheckCircle2, Clock, Sparkles, User, AlertCircle, Loader2, Cpu, Globe, Server, FileText, Copy, Check, X } from 'lucide-react';
 import { translateOfflineLocally } from '../utils/localTranslator';
 
 interface TranslationStudioProps {
@@ -12,6 +12,7 @@ interface TranslationStudioProps {
   onUpdateAllSubtitles: (items: SubtitleItem[]) => void;
   onProceedToTTS: () => void;
   onOpenApiKeyModal?: () => void;
+  onUpdateTranslationModel?: (newModel: string) => void;
 }
 
 export const DEFAULT_TRANSLATION_PROMPT = `You are a professional English-to-Persian translator specializing in programming, computer science, software development, AI, and educational content.
@@ -30,23 +31,62 @@ Your task is to translate English text into natural, concise, conversational Per
 - CRITICAL: Never cut off, omit, or delete parts of the sentence! If an English sentence has multiple clauses or ideas, ALL clauses must be translated and conveyed clearly.
 - Avoid unnecessary explanations, filler words, redundant phrases, and repetitions.
 - The Persian translation must NOT contain more than 120% of the words of the original English text (e.g., if English is 10 words, Persian should be around 8 to 12 words max).
+- Treat this budget as a guideline for conciseness: before returning the translation, check the word count.
 - Whenever two translations are equally accurate, choose the shorter, punchier one.
-- Never remove important technical details, conditions, examples, warnings, or logical relationships just to meet the word limit.
+- Never remove important technical details, conditions, examples, warnings, or logical relationships just to meet the word limit. Instead, rewrite the sentence more concisely.
 - Prioritize semantic accuracy and completeness while remaining as concise as possible.
 
 ### 3. Preserve Technical Terminology in English
 - Keep established technical terms from computer science, programming, AI, networking, software engineering, and web development in their original English form.
 - Do NOT translate technical terminology into Persian just to make it sound more localized.
-- Examples: Magic Method, Class, Object, Function, Framework, API, Debugging, Runtime, Callback, Middleware, Machine Learning, Token, Prompt, VMware Player, Docker.
+- Examples:
+  - Magic Method → Magic Method (NOT "متد جادویی")
+  - Class → Class
+  - Object → Object
+  - Function → Function
+  - Framework → Framework
+  - API / Endpoint → API / Endpoint
+  - Debugging → Debugging
+  - Runtime → Runtime
+  - Callback → Callback
+  - Middleware → Middleware
+  - Machine Learning → Machine Learning
+  - Neural Network → Neural Network
+  - Token → Token
+  - Prompt → Prompt
+  - Method / Constructor → Method / Constructor
+  - Array / String / Loop → Array / String / Loop
+  - Database / Query → Database / Query
+  - Frontend / Backend / Fullstack → Frontend / Backend / Fullstack
+  - VMware Player / Docker / Linux / VS Code → VMware Player / Docker / Linux / VS Code
+- Preserve the exact spelling and capitalization of software tools, class names, function names, and code identifiers.
+- Do not translate an entire sentence into English. Keep the surrounding explanation in natural Persian while retaining technical terms in English.
 
-### 4. Golden Examples:
+### 4. Semantic Accuracy & Completeness
+- Preserve the original meaning, intent, technical accuracy, and logical relationships.
+- Do not add explanations or assumptions that the original speaker did not provide.
+- Do not omit important details, examples, conditions, warnings, or second clauses.
+- Preserve names, numbers, values, code, and technical references accurately.
+
+### 5. Voiceover and Subtitle Optimization
+- Write short, easy-to-speak sentences suitable for voiceover and dubbing.
+- Avoid awkward phrasing, unnecessarily complex sentence structures, and difficult-to-pronounce constructions.
+- Keep the translation reasonably close to the original sentence length and speaking rhythm.
+
+### 6. Golden Examples (Follow these patterns strictly):
 Example 1:
 English: "downloading and installing the VMware Player. Now, this is one of our first choice"
-Correct Persian: "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست."
+WRONG (Dropped the second clause): "دانلود و نصب VMware Player." ❌ (Missing critical meaning!)
+CORRECT (Conversational & Complete): "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست." ✅
 
 Example 2:
 English: "Hey, everybody, welcome back. It's Mo again. Well, this lecture what we're going to be doing is"
-Correct Persian: "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..."`;
+WRONG (Stiff & chopped off): "سلام، خوش اومدید، دوباره مو هستم." ❌
+CORRECT (Natural Instructor Style): "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..." ✅
+
+Example 3:
+English: "In this function we handle the callback and catch any runtime error."
+CORRECT: "توی این Function، کال‌بک (Callback) رو هندل می‌کنیم و جلوی Runtime Error رو می‌گیریم." ✅`;
 
 export const TranslationStudio: React.FC<TranslationStudioProps> = ({
   apiKey,
@@ -57,15 +97,56 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
   onUpdateAllSubtitles,
   onProceedToTTS,
   onOpenApiKeyModal,
+  onUpdateTranslationModel,
 }) => {
+  const [translationEngine, setTranslationEngine] = useState<'gpt' | 'deepseek' | 'local'>(() => {
+    if (translationModel && translationModel.toLowerCase().includes('deepseek')) {
+      return 'deepseek';
+    }
+    return 'gpt';
+  });
   const [selectedStyle, setSelectedStyle] = useState<TranslationStyle>('colloquial');
-  const [translationEngine, setTranslationEngine] = useState<'gemini' | 'local'>('gemini');
   const [isTranslating, setIsTranslating] = useState(false);
   const [translatingLineId, setTranslatingLineId] = useState<number | null>(null);
   const [translationError, setTranslationError] = useState<string | null>(null);
+const effectiveModel =
+    translationEngine === 'deepseek'
+      ? 'deepseek/deepseek-v4.1-flash-1017'
+      : (translationModel && !translationModel.toLowerCase().includes('deepseek')
+          ? translationModel
+          : 'openai/gpt-6-luna');
+
+  useEffect(() => {
+    if (translationModel && translationModel.toLowerCase().includes('deepseek')) {
+      setTranslationEngine('deepseek');
+    } else if (translationEngine !== 'local') {
+      setTranslationEngine('gpt');
+    }
+  }, [translationModel]);
   const [globalVoice, setGlobalVoice] = useState<GeminiVoiceId>('Iapetus');
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState<string>(() => {
+    const saved = localStorage.getItem('vidans_custom_translation_prompt');
+    if (!saved || !saved.includes('### 6. Golden Examples')) {
+      return DEFAULT_TRANSLATION_PROMPT;
+    }
+    return saved;
+  });
+  const [editedPrompt, setEditedPrompt] = useState<string>(() => {
+    const saved = localStorage.getItem('vidans_custom_translation_prompt');
+    if (!saved || !saved.includes('### 6. Golden Examples')) {
+      return DEFAULT_TRANSLATION_PROMPT;
+    }
+    return saved;
+  });
+  const [promptSavedAlert, setPromptSavedAlert] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (showPromptModal) {
+      setEditedPrompt(customPrompt);
+    }
+  }, [showPromptModal, customPrompt]);
 
   const translatedCount = subtitles.filter((s) => s.farsiText.trim().length > 0).length;
   const isAllTranslated = subtitles.length > 0 && translatedCount === subtitles.length;
@@ -96,15 +177,24 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
         } catch (_) {}
 
         if (fallbackData?.translations && Array.isArray(fallbackData.translations)) {
-          const translationMap = new Map<number, string>();
+          const translationMap = new Map<number, any>();
           for (const t of fallbackData.translations) {
-            translationMap.set(t.id, t.farsiText);
+            translationMap.set(t.id, t);
           }
           const updated = subtitles.map((sub) => {
-            const fa = translationMap.get(sub.id) || translateOfflineLocally(sub.originalText, selectedStyle);
+            const trans = translationMap.get(sub.id);
+            const fa = trans?.farsiText || translateOfflineLocally(sub.originalText, selectedStyle);
             return {
               ...sub,
               farsiText: fa || sub.farsiText,
+              candidates: trans?.candidates || sub.candidates,
+              selectedCandidateId: trans?.selectedCandidateId || sub.selectedCandidateId,
+              predictedDuration: trans?.predictedDuration || sub.predictedDuration,
+              durationError: trans?.durationError ?? sub.durationError,
+              relativeDurationError: trans?.relativeDurationError ?? sub.relativeDurationError,
+              validationStatus: trans?.validationStatus || sub.validationStatus,
+              balancedSyncStatus: trans?.balancedSyncStatus || sub.balancedSyncStatus,
+              selectionReasonFa: trans?.selectionReasonFa || sub.selectionReasonFa,
               status: 'translated' as const,
             };
           });
@@ -147,14 +237,15 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
             'Content-Type': 'application/json',
             ...(apiKey ? { 'x-api-key': apiKey, 'x-gemini-api-key': apiKey } : {}),
             ...(baseUrl ? { 'x-base-url': baseUrl } : {}),
-            ...(translationModel ? { 'x-translation-model': translationModel } : {}),
+            ...(effectiveModel ? { 'x-translation-model': effectiveModel } : {}),
           },
           body: JSON.stringify({
             lines: payloadLines,
             style: selectedStyle,
             apiKey,
             baseUrl,
-            translationModel,
+            translationModel: effectiveModel,
+            customPrompt,
           }),
         });
 
@@ -170,7 +261,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
       }
 
       if (data?.translations && Array.isArray(data.translations) && data.translations.length > 0) {
-        const translationMap = new Map<number, { farsiText: string; characterEmotion?: string; suggestedGender?: string }>();
+        const translationMap = new Map<number, any>();
         for (const t of data.translations) {
           translationMap.set(t.id, t);
         }
@@ -188,6 +279,14 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
               farsiText: trans.farsiText || sub.farsiText,
               emotion: trans.characterEmotion || sub.emotion,
               voice: suggestedVoice,
+              candidates: trans.candidates || sub.candidates,
+              selectedCandidateId: trans.selectedCandidateId || sub.selectedCandidateId,
+              predictedDuration: trans.predictedDuration || sub.predictedDuration,
+              durationError: trans.durationError ?? sub.durationError,
+              relativeDurationError: trans.relativeDurationError ?? sub.relativeDurationError,
+              validationStatus: trans.validationStatus || sub.validationStatus,
+              balancedSyncStatus: trans.balancedSyncStatus || sub.balancedSyncStatus,
+              selectionReasonFa: trans.selectionReasonFa || sub.selectionReasonFa,
               status: 'translated' as const,
             };
           }
@@ -261,7 +360,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
             'Content-Type': 'application/json',
             ...(apiKey ? { 'x-api-key': apiKey, 'x-gemini-api-key': apiKey } : {}),
             ...(baseUrl ? { 'x-base-url': baseUrl } : {}),
-            ...(translationModel ? { 'x-translation-model': translationModel } : {}),
+            ...(effectiveModel ? { 'x-translation-model': effectiveModel } : {}),
           },
           body: JSON.stringify({
             lines: [
@@ -276,7 +375,8 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
             style: selectedStyle,
             apiKey,
             baseUrl,
-            translationModel,
+            translationModel: effectiveModel,
+            customPrompt,
           }),
         });
 
@@ -296,6 +396,14 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
         onUpdateSubtitle(sub.id, {
           farsiText: t.farsiText,
           emotion: t.characterEmotion || sub.emotion,
+          candidates: t.candidates || sub.candidates,
+          selectedCandidateId: t.selectedCandidateId || sub.selectedCandidateId,
+          predictedDuration: t.predictedDuration || sub.predictedDuration,
+          durationError: t.durationError ?? sub.durationError,
+          relativeDurationError: t.relativeDurationError ?? sub.relativeDurationError,
+          validationStatus: t.validationStatus || sub.validationStatus,
+          balancedSyncStatus: t.balancedSyncStatus || sub.balancedSyncStatus,
+          selectionReasonFa: t.selectionReasonFa || sub.selectionReasonFa,
           status: 'translated',
         });
       } else {
@@ -363,16 +471,20 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
               {isTranslating
                 ? translationEngine === 'local'
                   ? 'در حال ترجمه با مدل داخلی...'
-                  : 'در حال ترجمه سریع با Gemini 3.8 Flash...'
+                  : translationEngine === 'deepseek'
+                  ? 'در حال ترجمه با DeepSeek...'
+                  : 'در حال ترجمه با GPT (لونا)...'
                 : translationEngine === 'local'
                 ? 'ترجمه با مدل داخلی (آفلاین)'
-                : 'ترجمه پرسرعت با جمینای'}
+                : translationEngine === 'deepseek'
+                ? 'ترجمه هوشمند با DeepSeek'
+                : 'ترجمه هوشمند با GPT'}
             </span>
           </button>
         </div>
       </div>
 
-      {/* Engine Selector Bar (Gemini Cloud vs Local Offline Engine) */}
+      {/* Engine Selector Bar (GPT vs DeepSeek vs Local Offline Engine) */}
       <div className="mb-6 p-4 bg-slate-950/70 rounded-2xl border border-slate-800">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
           <div className="flex items-center gap-2 text-xs font-bold text-slate-300">
@@ -381,25 +493,47 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {/* Button 1: Translate with GPT */}
             <button
               type="button"
-              onClick={() => setTranslationEngine('gemini')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
-                translationEngine === 'gemini'
-                  ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
-                  : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
+              onClick={() => {
+                setTranslationEngine('gpt');
+                if (onUpdateTranslationModel) onUpdateTranslationModel('openai/gpt-6-luna');
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                translationEngine === 'gpt'
+                  ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/30 ring-2 ring-[#34d399]'
+                  : 'bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
               }`}
             >
-              <Globe className="w-3.5 h-3.5" />
-              <span>هوش مصنوعی ابری (Google Gemini)</span>
+              <Bot className="w-4 h-4 text-[#34d399]" />
+              <span>ترجمه با GPT</span>
             </button>
 
+            {/* Button 2: Translate with DeepSeek */}
+            <button
+              type="button"
+              onClick={() => {
+                setTranslationEngine('deepseek');
+                if (onUpdateTranslationModel) onUpdateTranslationModel('deepseek/deepseek-v4.1-flash-1017');
+              }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm ${
+                translationEngine === 'deepseek'
+                  ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30 ring-2 ring-blue-400'
+                  : 'bg-slate-900 border border-slate-800 text-slate-300 hover:text-white hover:border-slate-700'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-blue-400" />
+              <span>ترجمه با DeepSeek</span>
+            </button>
+
+            {/* Button 3: Local Offline Engine */}
             <button
               type="button"
               onClick={() => setTranslationEngine('local')}
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs font-semibold transition ${
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition ${
                 translationEngine === 'local'
-                  ? 'bg-emerald-500 text-slate-950 shadow-md shadow-emerald-500/20'
+                  ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/25 ring-2 ring-emerald-400'
                   : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -411,16 +545,41 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
 
         {/* Engine Description Pill */}
         <div className="text-[11px] text-slate-400 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80 flex items-center justify-between flex-wrap gap-2">
-          {translationEngine === 'gemini' ? (
+          {translationEngine === 'gpt' ? (
             <span>
-              <strong className="text-[#34d399]">مدل Claude Haiku 5.5:</strong> ترجمه پرسرعت با هوش مصنوعی با بیان رسا و حفظ اصطلاحات تخصصی کامپیوتر.
+              <strong className="text-[#34d399]">موتور OpenAI GPT ({effectiveModel}):</strong> ترجمه طبیعی، روان محاوره‌ای و هماهنگ با تایمینگ دوبله فارسی.
+            </span>
+          ) : translationEngine === 'deepseek' ? (
+            <span>
+              <strong className="text-blue-400">موتور DeepSeek ({effectiveModel}):</strong> سرعت پاسخ‌دهی بالا، هزینه اقتصادی و درک عالی متون و کدهای فنی.
             </span>
           ) : (
             <span>
-              <strong className="text-emerald-300">مدل داخلی:</strong> اجرای کاملاً لوکال و بدون نیاز به اینترنت
+              <strong className="text-emerald-300">مدل داخلی و آفلاین:</strong> اجرای کاملاً رایگان روی سیستم بدون نیاز به اینترنت یا کلید API
             </span>
           )}
         </div>
+
+        {/* API Key Status Notice */}
+        {!apiKey && translationEngine !== 'local' && (
+          <div className="mt-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+              <span>
+                کلید API وارد نشده است؛ سیستم به صورت خودکار با <strong>موتور پرسرعت فارسی</strong> ترجمه را انجام می‌دهد. برای استفاده اختصاصی از مدل <strong>{effectiveModel}</strong>، لطفاً کلید API هرمز را تنظیم نمایید.
+              </span>
+            </div>
+            {onOpenApiKeyModal && (
+              <button
+                type="button"
+                onClick={onOpenApiKeyModal}
+                className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-lg text-[11px] transition shadow"
+              >
+                تنظیم کلید API
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Style & Global Voice Bar */}
@@ -723,7 +882,7 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
               <div className="flex items-center gap-2.5">
                 <Sliders className="w-5 h-5 text-[#34d399]" />
                 <div>
-                  <h3 className="font-bold text-slate-200 text-sm">ویرایش و تنظیم پرامپت ترجمه (Claude Haiku 5.5)</h3>
+                  <h3 className="font-bold text-slate-200 text-sm">ویرایش و تنظیم پرامپت ترجمه ({effectiveModel})</h3>
                   <p className="text-[11px] text-slate-400 mt-0.5">دستورالعمل هوش مصنوعی برای لحن محاوره‌ای مدرس، رعایت سقف کلمات و حفظ اصطلاحات انگلیسی</p>
                 </div>
               </div>

@@ -1,4 +1,5 @@
 import { SubtitleItem } from '../types/dubbing';
+import { profileAudioSilence, extractEffectiveSpeechBuffer, timeStretchAudioBufferWSOLA } from './syncEngine';
 
 // Global audio context for decoding
 let sharedAudioCtx: AudioContext | null = null;
@@ -49,6 +50,18 @@ export async function decodeBase64ToAudioBuffer(base64: string): Promise<AudioBu
   const buffer = await ctx.decodeAudioData(arrayBuffer);
   base64BufferCache.set(cacheKey, buffer);
   return buffer;
+}
+
+/**
+ * Converts a Blob to a base64 Data URL string
+ */
+export function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 /**
@@ -220,9 +233,15 @@ export async function renderDubbedTrack(
   const rawSpeechTracks: { item: SubtitleItem; buffer: AudioBuffer }[] = [];
   for (let i = 0; i < subtitles.length; i++) {
     const sub = subtitles[i];
-    if (sub.audioBase64) {
+    // Skip temporarily muted segments
+    if (sub.isMuted) {
+      continue;
+    }
+    // Prefer processed time-stretched audio if available, otherwise original active audio
+    const audioData = sub.processedAudioBase64 || sub.audioBase64;
+    if (audioData) {
       try {
-        const buf = await decodeBase64ToAudioBuffer(sub.audioBase64);
+        const buf = await decodeBase64ToAudioBuffer(audioData);
         rawSpeechTracks.push({ item: sub, buffer: buf });
       } catch (err) {
         console.error(`Failed to decode audio for line #${sub.id}`, err);
@@ -236,7 +255,7 @@ export async function renderDubbedTrack(
   const sampleRate = originalBuffer ? originalBuffer.sampleRate : 44100;
   const channels = originalBuffer ? originalBuffer.numberOfChannels : 2;
 
-  // Trim leading/trailing digital silence on all speech buffers so speech attacks instantly at sub.start
+  // 1. Process and synchronize all speech tracks with pitch-preserving time stretching
   const speechTracks: {
     item: SubtitleItem;
     buffer: AudioBuffer;
@@ -245,24 +264,46 @@ export async function renderDubbedTrack(
     playbackRate: number;
   }[] = [];
 
-  const tempCtx = new OfflineAudioContext(1, 1024, sampleRate);
+  const tempCtx = new OfflineAudioContext(channels, 1024, sampleRate);
 
   for (let i = 0; i < rawSpeechTracks.length; i++) {
     const st = rawSpeechTracks[i];
-    const trimmed = trimBufferSilence(st.buffer, tempCtx);
+    const profile = profileAudioSilence(st.buffer);
+    
+    // Trim leading and trailing digital dead silence so audio attacks exactly at dialogue onset
+    const trimmed = extractEffectiveSpeechBuffer(st.buffer, tempCtx, profile);
+
+    // Calculate target duration from subtitle boundaries (preserve short <1s segments)
+    const targetDur = Math.max(0.1, st.item.end - st.item.start);
+    const effDur = trimmed.duration;
     const offset = typeof st.item.audioOffset === 'number' ? st.item.audioOffset : 0;
     const start = Math.max(0, st.item.start + offset);
 
+    // Determine if pitch-preserving time stretch is required
+    let finalBuffer = trimmed;
+    let tempo = 1.0;
+    if (!st.item.processedAudioBase64) {
+      tempo = st.item.timeStretchRatio || st.item.playbackRate || 1.0;
+      // If no manual stretch was set but effective duration exceeds target by > 5%, apply automatic safe stretch
+      if (tempo === 1.0 && effDur > targetDur * 1.05) {
+        tempo = Math.min(1.25, Math.round((effDur / targetDur) * 100) / 100);
+      }
+    }
+
+    if (tempo > 1.01 || tempo < 0.99) {
+      finalBuffer = timeStretchAudioBufferWSOLA(trimmed, tempo, tempCtx);
+    }
+
     speechTracks.push({
       item: st.item,
-      buffer: trimmed,
+      buffer: finalBuffer,
       start,
-      effectiveDuration: trimmed.duration,
-      playbackRate: 1.0, // Strictly 1.0x: Preserves 100% natural vocal tone, pitch, and depth
+      effectiveDuration: finalBuffer.duration,
+      playbackRate: 1.0, // Buffer is already stretched with pitch preservation; play at 1.0x
     });
   }
 
-  // Sort speech tracks by their effective shifted start time
+  // Sort speech tracks strictly by effective timeline start time
   speechTracks.sort((a, b) => a.start - b.start);
 
   // Determine total duration
@@ -286,6 +327,15 @@ export async function renderDubbedTrack(
     Math.ceil(sampleRate * maxDuration),
     sampleRate
   );
+
+  // Setup Master Dynamic Limiter to prevent clipping when voices and background audio sum
+  const masterLimiter = offlineCtx.createDynamicsCompressor();
+  masterLimiter.threshold.setValueAtTime(-1.0, 0); // -1.0 dBFS
+  masterLimiter.knee.setValueAtTime(3.0, 0);
+  masterLimiter.ratio.setValueAtTime(20.0, 0);
+  masterLimiter.attack.setValueAtTime(0.003, 0); // 3ms attack
+  masterLimiter.release.setValueAtTime(0.05, 0); // 50ms release
+  masterLimiter.connect(offlineCtx.destination);
 
   // 1. If original background audio exists and mode is not 'isolated'
   if (originalBuffer && mixMode !== 'isolated') {
@@ -351,38 +401,41 @@ export async function renderDubbedTrack(
     }
 
     bgSource.connect(bgGain);
-    bgGain.connect(offlineCtx.destination);
+    bgGain.connect(masterLimiter);
     bgSource.start(0);
   }
 
-  // 2. Position and play each Persian speech track anchored strictly to its subtitle start timestamp
+  
+  // Position and play each Persian speech track anchored strictly to its start timestamp (Zero Drift)
   onProgress?.(55, 'در حال میکس نهایی ترک‌های صوتی همگام بدون هیچ‌گونه تاخیر انباشته...');
 
   for (let i = 0; i < speechTracks.length; i++) {
     const st = speechTracks[i];
-    const nextSt = speechTracks[i + 1];
-
     const voiceSource = offlineCtx.createBufferSource();
     voiceSource.buffer = st.buffer;
-    voiceSource.playbackRate.setValueAtTime(st.playbackRate, 0);
+    voiceSource.playbackRate.setValueAtTime(1.0, 0);
 
     const voiceGain = offlineCtx.createGain();
     voiceGain.gain.setValueAtTime(persianVolume, 0);
 
-    // If text was exceptionally long and slightly touches the next line, apply subtle fade-out
-    if (nextSt && st.start + st.effectiveDuration > nextSt.start - 0.03) {
-      const stopTime = Math.max(st.start + 0.3, nextSt.start - 0.03);
-      try {
-        voiceGain.gain.setValueAtTime(persianVolume, Math.max(0, stopTime - 0.06));
-        voiceGain.gain.linearRampToValueAtTime(0, stopTime);
-        voiceSource.stop(stopTime);
-      } catch (_) {}
+    // Apply gentle 20ms anti-pop envelope at the very beginning and end of each speech line
+    const attackEnd = st.start + 0.02;
+    const decayStart = Math.max(st.start + 0.05, st.start + st.effectiveDuration - 0.03);
+    const decayEnd = st.start + st.effectiveDuration;
+
+    try {
+      voiceGain.gain.setValueAtTime(0.001, st.start);
+      voiceGain.gain.linearRampToValueAtTime(persianVolume, attackEnd);
+      voiceGain.gain.setValueAtTime(persianVolume, decayStart);
+      voiceGain.gain.linearRampToValueAtTime(0.001, decayEnd);
+    } catch (_) {
+      voiceGain.gain.setValueAtTime(persianVolume, st.start);
     }
 
     voiceSource.connect(voiceGain);
-    voiceGain.connect(offlineCtx.destination);
+    voiceGain.connect(masterLimiter);
 
-    // Schedule voice strictly at its subtitle start timestamp (Zero Drift)
+    // Schedule voice strictly at its subtitle start timestamp (Sample-Accurate Zero Drift)
     voiceSource.start(st.start);
   }
 

@@ -6,6 +6,8 @@ import {
   Pause,
   RefreshCw,
   CheckCircle2,
+  Wand2,
+  FastForward,
   Clock,
   Sparkles,
   AlertCircle,
@@ -20,7 +22,9 @@ import {
   Cpu,
   Key,
 } from 'lucide-react';
-import { decodeBase64ToAudioBuffer, getAudioContext } from '../utils/audioMixer';
+import { decodeBase64ToAudioBuffer, getAudioContext, audioBufferToWav, blobToBase64 } from '../utils/audioMixer';
+import { profileAudioSilence, evaluateSynchronization, trimZeroSilenceAudioBuffer } from '../utils/syncEngine';
+import { recordTtsCalibration } from '../utils/voiceProfiles';
 import { generateOfflineSpeechAudio, speakTextWithBrowser, stopBrowserSpeech } from '../utils/offlineVoiceSynthesizer';
 
 interface VoiceSynthesisStudioProps {
@@ -64,6 +68,53 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
   const [countdownInfo, setCountdownInfo] = useState<CountdownState | null>(null);
   const [globalError, setGlobalError] = useState<string | null>(null);
   const [playingLineId, setPlayingLineId] = useState<number | null>(null);
+  const [adaptingLineId, setAdaptingLineId] = useState<number | null>(null);
+
+  // One-click stretch to fit target duration without changing pitch
+  const handleAutoStretchLine = (sub: SubtitleItem) => {
+    const targetDur = Math.max(0.1, sub.end - sub.start);
+    const effDur = sub.effectiveDuration || sub.audioDuration || targetDur;
+    const requiredTempo = Math.min(1.28, Math.max(0.75, Number((effDur / targetDur).toFixed(2))));
+
+    onUpdateSubtitle(sub.id, {
+      timeStretchRatio: requiredTempo,
+      playbackRate: requiredTempo,
+      syncStatus: 'synchronized',
+    });
+  };
+
+  // One-click AI text shortening / adaptation to fit duration, followed by auto regeneration
+  const handleAdaptAndShortenText = async (sub: SubtitleItem, idx: number) => {
+    setAdaptingLineId(sub.id);
+    try {
+      const targetDuration = Math.max(0.5, sub.end - sub.start);
+      const res = await fetch('/api/adapt-translation-duration', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(apiKey ? { 'x-api-key': apiKey, 'x-gemini-api-key': apiKey } : {}),
+          ...(baseUrl ? { 'x-base-url': baseUrl } : {}),
+        },
+        body: JSON.stringify({
+          text: sub.farsiText,
+          targetDuration,
+          apiKey,
+          baseUrl,
+        }),
+      });
+
+      const data = await res.json();
+      if (data.success && data.shortenedText && data.shortenedText !== sub.farsiText) {
+        const updatedItem = { ...sub, farsiText: data.shortenedText };
+        onUpdateSubtitle(sub.id, { farsiText: data.shortenedText });
+        await generateSingleTTSWithRetry(updatedItem, idx);
+      }
+    } catch (err) {
+      console.error('Adaptation error:', err);
+    } finally {
+      setAdaptingLineId(null);
+    }
+  };
 
   const activeAudioNodeRef = useRef<AudioBufferSourceNode | null>(null);
   const cancelRequestedRef = useRef<boolean>(false);
@@ -160,9 +211,47 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
       const gender = sub.voice === 'Kore' ? 'female' : sub.voice === 'Fenrir' ? 'deep' : 'male';
       const result = await generateOfflineSpeechAudio(sub.farsiText, gender, targetDuration);
 
+      let finalAudioBase64 = result.audioBase64;
+      let finalAudioDuration = result.duration;
+      let leadingRemoved = 0;
+      let trailingRemoved = 0;
+      let silenceProfile;
+
+      try {
+        const rawBuf = await decodeBase64ToAudioBuffer(result.audioBase64);
+        const ctx = getAudioContext();
+        const trimRes = trimZeroSilenceAudioBuffer(rawBuf, ctx, { paddingMs: 25 });
+        if (trimRes.isTrimmed) {
+          const wavBlob = audioBufferToWav(trimRes.trimmedBuffer);
+          finalAudioBase64 = await blobToBase64(wavBlob);
+          finalAudioDuration = trimRes.effectiveDuration;
+          leadingRemoved = trimRes.leadingSilenceTrimmedSec;
+          trailingRemoved = trimRes.trailingSilenceTrimmedSec;
+        }
+        silenceProfile = profileAudioSilence(trimRes.trimmedBuffer);
+      } catch (err) {
+        console.warn('Zero-silence offline audio trimming error:', err);
+      }
+
+      const syncEval = evaluateSynchronization(sub, silenceProfile);
+
       onUpdateSubtitle(sub.id, {
-        audioBase64: result.audioBase64,
-        audioDuration: result.duration,
+        originalAudioBase64: sub.originalAudioBase64 || result.audioBase64,
+        processedAudioBase64: finalAudioBase64,
+        audioBase64: finalAudioBase64,
+        audioDuration: finalAudioDuration,
+        effectiveDuration: silenceProfile?.effectiveDuration || finalAudioDuration,
+        leadingSilenceRemovedSec: leadingRemoved,
+        trailingSilenceRemovedSec: trailingRemoved,
+        targetDuration: syncEval.targetDuration,
+        leadingSilenceSec: silenceProfile?.leadingSilenceSec || 0,
+        trailingSilenceSec: silenceProfile?.trailingSilenceSec || 0,
+        durationRatio: syncEval.durationRatio,
+        timeStretchRatio: syncEval.timeStretchRatio,
+        playbackRate: syncEval.playbackRate,
+        syncStatus: syncEval.syncStatus,
+        syncConfidence: syncEval.syncConfidence,
+        qualityWarnings: syncEval.qualityWarnings,
         status: 'ready',
         error: undefined,
       });
@@ -286,15 +375,48 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
         }
 
         // Successfully received audio
+        let finalAudioBase64 = data.audioBase64;
         let audioDuration = 0;
+        let leadingRemoved = 0;
+        let trailingRemoved = 0;
+        let silenceProfile;
+
         try {
-          const buf = await decodeBase64ToAudioBuffer(data.audioBase64);
-          audioDuration = buf.duration;
-        } catch (_) {}
+          const rawBuf = await decodeBase64ToAudioBuffer(data.audioBase64);
+          audioDuration = rawBuf.duration;
+          const ctx = getAudioContext();
+          const trimRes = trimZeroSilenceAudioBuffer(rawBuf, ctx, { paddingMs: 25 });
+          if (trimRes.isTrimmed) {
+            const wavBlob = audioBufferToWav(trimRes.trimmedBuffer);
+            finalAudioBase64 = await blobToBase64(wavBlob);
+            audioDuration = trimRes.effectiveDuration;
+            leadingRemoved = trimRes.leadingSilenceTrimmedSec;
+            trailingRemoved = trimRes.trailingSilenceTrimmedSec;
+          }
+          silenceProfile = profileAudioSilence(trimRes.trimmedBuffer);
+        } catch (err) {
+          console.warn('Zero-silence API audio trimming error:', err);
+        }
+
+        const syncEval = evaluateSynchronization(sub, silenceProfile);
 
         onUpdateSubtitle(sub.id, {
-          audioBase64: data.audioBase64,
+          originalAudioBase64: sub.originalAudioBase64 || data.audioBase64,
+          processedAudioBase64: finalAudioBase64,
+          audioBase64: finalAudioBase64,
           audioDuration,
+          effectiveDuration: silenceProfile?.effectiveDuration || audioDuration,
+          leadingSilenceRemovedSec: leadingRemoved,
+          trailingSilenceRemovedSec: trailingRemoved,
+          targetDuration: syncEval.targetDuration,
+          leadingSilenceSec: silenceProfile?.leadingSilenceSec || 0,
+          trailingSilenceSec: silenceProfile?.trailingSilenceSec || 0,
+          durationRatio: syncEval.durationRatio,
+          timeStretchRatio: syncEval.timeStretchRatio,
+          playbackRate: syncEval.playbackRate,
+          syncStatus: syncEval.syncStatus,
+          syncConfidence: syncEval.syncConfidence,
+          qualityWarnings: syncEval.qualityWarnings,
           status: 'ready',
           error: undefined,
         });
@@ -665,11 +787,59 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
                       صداپیشه: {voiceMeta.nameFa}
                     </span>
 
-                    {hasAudio && sub.audioDuration && (
-                      <span className="text-[11px] px-2 py-0.5 rounded-md font-sans flex items-center gap-1 bg-emerald-950/50 text-emerald-300 border border-emerald-500/30">
-                        <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-                        <span>سرعت ۱.۰x استاندارد دوره آنلاین (طول صوت: {sub.audioDuration.toFixed(1)}s)</span>
-                      </span>
+                    {hasAudio && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                        <span className="text-[11px] px-2 py-0.5 rounded-md font-sans flex items-center gap-1 bg-slate-800 text-slate-300 border border-slate-700">
+                          <Clock className="w-3 h-3 text-[#34d399]" />
+                          <span>طول صوت: {(sub.effectiveDuration || sub.audioDuration || 0).toFixed(1)}s</span>
+                        </span>
+
+                        {sub.syncStatus === 'synchronized' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md font-sans flex items-center gap-1 bg-emerald-950/60 text-emerald-300 border border-emerald-500/30">
+                            <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                            <span>همگام با تصویر {sub.timeStretchRatio && sub.timeStretchRatio !== 1 ? `(${sub.timeStretchRatio}x)` : '(۱.۰x)'}</span>
+                          </span>
+                        )}
+
+                        {sub.syncStatus === 'needs_adjustment' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md font-sans flex items-center gap-1 bg-amber-950/60 text-amber-300 border border-amber-500/30">
+                            <AlertCircle className="w-3 h-3 text-amber-400" />
+                            <span>طولانی‌تر از ویدیوی اصلی (+{Math.round(((sub.durationRatio || 1) - 1) * 100)}%)</span>
+                          </span>
+                        )}
+
+                        {sub.syncStatus === 'manual_review' && (
+                          <span className="text-[10px] px-2 py-0.5 rounded-md font-sans flex items-center gap-1 bg-rose-950/60 text-rose-300 border border-rose-500/30">
+                            <AlertCircle className="w-3 h-3 text-rose-400" />
+                            <span>تداخل زمانی شدید (+{Math.round(((sub.durationRatio || 1) - 1) * 100)}%)</span>
+                          </span>
+                        )}
+
+                        {(sub.syncStatus === 'needs_adjustment' || sub.syncStatus === 'manual_review') && (
+                          <div className="flex items-center gap-1 mr-2">
+                            <button
+                              type="button"
+                              onClick={() => handleAutoStretchLine(sub)}
+                              className="text-[10px] px-2 py-0.5 rounded-md bg-blue-600/30 hover:bg-blue-600/50 text-blue-200 border border-blue-500/40 transition flex items-center gap-1"
+                              title="افزایش سرعت بدون تغییر زیروبمی صدا برای فیت شدن در تایم ویدیوی اصلی"
+                            >
+                              <FastForward className="w-2.5 h-2.5" />
+                              <span>تنظیم سرعت (Stretch)</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleAdaptAndShortenText(sub, idx + 1)}
+                              disabled={adaptingLineId === sub.id}
+                              className="text-[10px] px-2 py-0.5 rounded-md bg-amber-600/30 hover:bg-amber-600/50 text-amber-200 border border-amber-500/40 transition flex items-center gap-1 disabled:opacity-50"
+                              title="خلاصه‌سازی هوشمند متن فارسی با حفظ معنی و تولید مجدد صوت"
+                            >
+                              <Wand2 className="w-2.5 h-2.5" />
+                              <span>{adaptingLineId === sub.id ? 'در حال خلاصه‌سازی...' : 'خلاصه‌سازی متن'}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     )}
 
                     {isThisLineCountingDown && (

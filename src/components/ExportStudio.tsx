@@ -13,6 +13,9 @@ import {
   Layers,
   Mic2,
   Tag,
+  Video,
+  Film,
+  Play,
 } from 'lucide-react';
 import { exportToSrt, formatPlayerTime } from '../utils/srtParser';
 import { renderDubbedTrack } from '../utils/audioMixer';
@@ -31,6 +34,8 @@ interface ExportStudioProps {
   duckingAmount: number;
   sharedWavBlob?: Blob | null;
   sharedDuration?: number;
+  originalVideoFile?: File | null;
+  onVideoFileLoaded?: (file: File) => void;
   onMixRendered?: (res: { wavBlob: Blob; audioBuffer: AudioBuffer; totalDuration: number }) => void;
 }
 
@@ -47,6 +52,8 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
   duckingAmount,
   sharedWavBlob,
   sharedDuration,
+  originalVideoFile,
+  onVideoFileLoaded,
   onMixRendered,
 }) => {
   const [isRendering, setIsRendering] = useState(false);
@@ -59,6 +66,98 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
     sharedWavBlob ? URL.createObjectURL(sharedWavBlob) : null
   );
   const [renderedDuration, setRenderedDuration] = useState<number>(sharedDuration || 0);
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(originalVideoFile || null);
+  const [isRenderingVideo, setIsRenderingVideo] = useState(false);
+  const [renderedVideoUrl, setRenderedVideoUrl] = useState<string | null>(null);
+  const [renderedVideoBlob, setRenderedVideoBlob] = useState<Blob | null>(null);
+
+  React.useEffect(() => {
+    if (originalVideoFile) {
+      setSelectedVideoFile(originalVideoFile);
+    }
+  }, [originalVideoFile]);
+
+  // Convert Blob to Base64 helper
+  const blobToBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
+
+  // Render Dubbed MP4 Video via server FFmpeg (-c:v copy)
+  const handleRenderDubbedVideo = async () => {
+    if (!selectedVideoFile) {
+      alert('لطفاً ابتدا فایل ویدیوی اصلی را انتخاب کنید.');
+      return;
+    }
+
+    let activeWav = renderedWavBlob;
+    if (!activeWav) {
+      // Auto-render WAV if not yet rendered
+      setIsRendering(true);
+      try {
+        const res = await renderDubbedTrack(
+          {
+            originalBuffer: originalAudioBuffer,
+            subtitles,
+            mixMode,
+            persianVolume,
+            backgroundVolume,
+            duckingAmount,
+          },
+          (percent, message) => setRenderProgress({ percent, message })
+        );
+        activeWav = res.wavBlob;
+        setRenderedWavBlob(res.wavBlob);
+        setRenderedWavUrl(URL.createObjectURL(res.wavBlob));
+        setRenderedDuration(res.totalDuration);
+      } catch (err: any) {
+        alert('خطا در رندر اولیه صوت: ' + err.message);
+        setIsRendering(false);
+        return;
+      } finally {
+        setIsRendering(false);
+      }
+    }
+
+    setIsRenderingVideo(true);
+    try {
+      const base64Audio = await blobToBase64(activeWav);
+      const res = await fetch(`/api/render-dubbed-video?outputName=${encodeURIComponent(effectiveBaseName + '_dubbed')}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'video/mp4',
+          'x-audio-base64': base64Audio,
+        },
+        body: selectedVideoFile,
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null);
+        throw new Error(errJson?.error || 'خطا در رندر ویدیو با سرور');
+      }
+
+      const videoBlob = await res.blob();
+      const videoUrl = URL.createObjectURL(videoBlob);
+      setRenderedVideoBlob(videoBlob);
+      setRenderedVideoUrl(videoUrl);
+
+      // Trigger auto download
+      const a = document.createElement('a');
+      a.href = videoUrl;
+      a.download = `${effectiveBaseName}_dubbed.mp4`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (err: any) {
+      alert('خطا در خروجی ویدیو: ' + (err.message || 'خطای نامشخص'));
+    } finally {
+      setIsRenderingVideo(false);
+    }
+  };
 
   // Sync with shared render from TimelinePlayer
   React.useEffect(() => {
@@ -244,62 +343,144 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
       </div>
 
       {/* Ready Downloads Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
-        {/* 1. Download Dubbed WAV Card */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        {/* 1. Download Dubbed MP4 Video Card */}
         <div
-          className={`p-6 rounded-2xl border transition-all ${
+          className={`p-6 rounded-2xl border transition-all flex flex-col justify-between ${
+            renderedVideoBlob
+              ? 'bg-gradient-to-b from-slate-950 to-slate-900 border-[#099767] shadow-lg shadow-[#099767]/15 ring-1 ring-[#099767]/40'
+              : 'bg-slate-950/70 border-slate-800'
+          }`}
+        >
+          <div>
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                <Video className="w-6 h-6" />
+              </div>
+              {renderedVideoBlob ? (
+                <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-full font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  ویدیو آماده است
+                </span>
+              ) : selectedVideoFile ? (
+                <span className="text-xs text-blue-400 bg-blue-500/10 border border-blue-500/30 px-2.5 py-1 rounded-full font-mono">
+                  {selectedVideoFile.name.slice(0, 18)}...
+                </span>
+              ) : (
+                <span className="text-xs text-slate-500 bg-slate-800/80 px-2.5 py-1 rounded-full">
+                  انتخاب ویدیو
+                </span>
+              )}
+            </div>
+
+            <h3 className="text-base font-bold text-white mb-1">
+              ویدیوی کامل دوبله شده (MP4 با کیفیت اصلی)
+            </h3>
+            <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+              ترکیب ویدیوی اولیه با صوت دوبله فارسی با انکود FFmpeg Stream Copy (حفظ ۱۰۰٪ کیفیت تصویر و ابعاد فیلم بدون افت کیفیت).
+            </p>
+
+            {/* If video file not selected, provide quick picker */}
+            {!selectedVideoFile && (
+              <label className="mb-3 block cursor-pointer p-3 rounded-xl border border-dashed border-slate-700 bg-slate-900 hover:border-[#099767] text-center transition">
+                <span className="text-xs text-[#34d399] font-medium">کلیک برای انتخاب فایل ویدیوی فیلم (MP4)</span>
+                <input
+                  type="file"
+                  accept="video/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) {
+                      setSelectedVideoFile(f);
+                      onVideoFileLoaded?.(f);
+                    }
+                  }}
+                />
+              </label>
+            )}
+
+            {renderedVideoUrl && (
+              <div className="mb-3 rounded-xl overflow-hidden border border-slate-800 bg-black">
+                <video controls src={renderedVideoUrl} className="w-full max-h-36 object-contain" />
+              </div>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={handleRenderDubbedVideo}
+            disabled={isRenderingVideo || (!selectedVideoFile && !originalAudioBuffer)}
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-purple-600 to-[#099767] hover:from-purple-500 hover:to-[#0ba873] text-white font-bold text-xs transition shadow-lg shadow-purple-500/20 disabled:opacity-50 font-mono mt-3"
+            title="رندر ویدیوی MP4 با صوت دوبله شده فارسی"
+          >
+            {isRenderingVideo ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>در حال رندر ویدیوی MP4...</span>
+              </>
+            ) : (
+              <>
+                <Download className="w-4 h-4" />
+                <span>دانلود ویدیوی نهایی ({effectiveBaseName}_dubbed.mp4)</span>
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* 2. Download Dubbed WAV Card */}
+        <div
+          className={`p-6 rounded-2xl border transition-all flex flex-col justify-between ${
             renderedWavBlob
               ? 'bg-gradient-to-b from-slate-950 to-slate-900 border-emerald-500/50 shadow-lg shadow-emerald-500/5'
               : 'bg-slate-950/60 border-slate-800'
           }`}
         >
-          <div className="flex items-start justify-between mb-4">
-            <div className="w-12 h-12 rounded-xl bg-[#099767]/10 border border-[#099767]/30 flex items-center justify-center text-[#34d399]">
-              <FileAudio className="w-6 h-6" />
+          <div>
+            <div className="flex items-start justify-between mb-4">
+              <div className="w-12 h-12 rounded-xl bg-[#099767]/10 border border-[#099767]/30 flex items-center justify-center text-[#34d399]">
+                <FileAudio className="w-6 h-6" />
+              </div>
+              {renderedWavBlob ? (
+                <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-full font-medium">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  آماده دانلود
+                </span>
+              ) : (
+                <span className="text-xs text-slate-500 bg-slate-800/80 px-2.5 py-1 rounded-full">
+                  نیازمند رندر
+                </span>
+              )}
             </div>
-            {renderedWavBlob ? (
-              <span className="flex items-center gap-1 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-1 rounded-full font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                آماده دانلود
-              </span>
-            ) : (
-              <span className="text-xs text-slate-500 bg-slate-800/80 px-2.5 py-1 rounded-full">
-                نیازمند رندر
-              </span>
+
+            <h3 className="text-base font-bold text-white mb-1">
+              ترک صوتی دوبله فارسی (WAV PCM 16-bit)
+            </h3>
+            <p className="text-xs text-slate-400 mb-3 leading-relaxed">
+              {renderedWavBlob
+                ? `صوت کامل به مدت ${formatPlayerTime(renderedDuration)} با کیفیت استودیویی استخراج شده است. آماده پخش و تدوین.`
+                : 'فایل صوتی استودیویی بدون افت کیفیت، قابل استفاده در پریمیر و داوینچی ریزالو.'}
+            </p>
+
+            {renderedWavUrl && (
+              <div className="mb-3 p-2 bg-slate-900 rounded-xl border border-slate-800">
+                <audio controls src={renderedWavUrl} className="w-full h-8" />
+              </div>
             )}
           </div>
-
-          <h3 className="text-base font-bold text-white mb-1">
-            فایل صوتی کامل دوبله فارسی (WAV PCM 16-bit)
-          </h3>
-          <p className="text-xs text-slate-400 mb-4 leading-relaxed">
-            {renderedWavBlob
-              ? `صوت کامل به مدت ${formatPlayerTime(renderedDuration)} با کیفیت استودیویی استخراج شده است. آماده پخش و تدوین.`
-              : 'پس از کلیک روی «ساخت و رندر فایل صوتی»، فایل WAV با زمان‌بندی دقیق و هماهنگ با ویدیو ساخته می‌شود.'}
-          </p>
-
-          {renderedWavUrl && (
-            <div className="mb-4 p-3 bg-slate-900 rounded-xl border border-slate-800">
-              <div className="text-[11px] text-slate-400 mb-1.5 flex items-center gap-1.5">
-                <span>پیش‌شنوایی صوت رندر شده:</span>
-              </div>
-              <audio controls src={renderedWavUrl} className="w-full h-8" />
-            </div>
-          )}
 
           <button
             type="button"
             onClick={handleDownloadWav}
             disabled={!renderedWavBlob}
-            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-bold text-xs transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 font-mono"
+            className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-slate-950 font-bold text-xs transition shadow-lg shadow-emerald-500/20 disabled:opacity-50 font-mono mt-3"
             title={`دانلود صوت دوبله فارسی با نام ${effectiveBaseName}.wav`}
           >
             <Download className="w-4 h-4" />
-            <span>دانلود فایل صوتی دوبله ({effectiveBaseName}.wav)</span>
+            <span>دانلود صوت دوبله ({effectiveBaseName}.wav)</span>
           </button>
         </div>
 
-        {/* 2. Download Translated Persian SRT Card */}
+        {/* 3. Download Translated Persian SRT Card */}
         <div className="p-6 rounded-2xl border border-slate-800 bg-slate-950/60 flex flex-col justify-between">
           <div>
             <div className="flex items-start justify-between mb-4">
@@ -312,7 +493,7 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
             </div>
 
             <h3 className="text-base font-bold text-white mb-1">
-              فایل زیرنویس فارسی ترجمه شده (SRT)
+              فایل زیرنویس فارسی همگام (SRT)
             </h3>
             <p className="text-xs text-slate-400 mb-4 leading-relaxed">
               زیرنویس همگام با زمان‌بندی دقیق صحنه‌های فیلم شامل تمام دیالوگ‌های فارسی ترجمه شده برای استفاده در پخش‌کننده‌ها.
@@ -328,14 +509,14 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
               title={`دانلود زیرنویس دقیقاً همنام: ${effectiveBaseName}.srt`}
             >
               <Download className="w-4 h-4" />
-              <span>دانلود زیرنویس ({effectiveBaseName}.srt)</span>
+              <span>دانلود ({effectiveBaseName}.srt)</span>
             </button>
             <button
               type="button"
               onClick={() => handleDownloadSrt(true)}
               disabled={subtitles.length === 0}
               className="flex items-center justify-center gap-1 py-3 px-3 rounded-xl bg-slate-850 hover:bg-slate-800 text-slate-300 hover:text-[#34d399] font-mono text-[11px] border border-slate-700 transition disabled:opacity-50 shrink-0"
-              title={`دانلود با پسوند استاندارد زبان: ${effectiveBaseName}.fa.srt`}
+              title={`دانلود با پسوند زبان: ${effectiveBaseName}.fa.srt`}
             >
               <span>.fa.srt</span>
             </button>

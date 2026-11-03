@@ -31,7 +31,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   onClose,
   apiKey,
   baseUrl = 'https://api.hormouz.net/v1',
-  translationModel = 'Anthropic: Claude Haiku 5.5',
+  translationModel = 'openai/gpt-6-luna',
   ttsModel = 'google/gemini-3.8-flash-lite-tts',
   onSaveApiKey,
   hasEnvKey,
@@ -42,7 +42,12 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
 
   const [inputKey, setInputKey] = useState(apiKey);
   const [inputBaseUrl, setInputBaseUrl] = useState(baseUrl);
-  const [inputTransModel, setInputTransModel] = useState(translationModel);
+  const [inputTransModel, setInputTransModel] = useState(() => {
+    if (!translationModel || translationModel.toLowerCase().includes('gpt-4') || translationModel === 'Anthropic: Claude Haiku 5.5') {
+      return 'openai/gpt-6-luna';
+    }
+    return translationModel;
+  });
   const [inputTtsModel, setInputTtsModel] = useState(ttsModel);
 
   const [showKey, setShowKey] = useState(false);
@@ -304,9 +309,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                   ))}
                 </div>
               </div>
-            )}
-
-            {/* Translation Model */}
+            )}            {/* Translation Model */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
                 <span className="flex items-center gap-1.5">
@@ -324,10 +327,35 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
                   setInputTransModel(e.target.value);
                   setTestResult(null);
                 }}
-                placeholder="Anthropic: Claude Haiku 5.5"
+                placeholder="openai/gpt-6-luna"
                 dir="ltr"
                 className="w-full bg-slate-900 border border-slate-700 rounded-lg py-2 px-3 text-xs text-slate-200 placeholder:text-slate-600 font-mono focus:outline-none focus:border-[#099767] transition"
               />
+              <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                <span className="text-[10px] text-slate-500">مدل‌های فعال شما در هرمز:</span>
+                {[
+                  { id: 'openai/gpt-6-luna', label: 'GPT-6 Luna (پیش‌فرض - سریع و اقتصادی)' },
+                  { id: 'openai/gpt-6-luna-pro', label: 'GPT-6 Luna Pro (بالاترین کیفیت و دقت)' },
+                  { id: 'deepseek/deepseek-v4.1-flash-1017', label: 'DeepSeek Flash 4.1 (پرسرعت و اقتصادی)' },
+                  { id: 'openai/gpt-6-luna-batch', label: 'GPT-6 Luna (batch)' },
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      setInputTransModel(m.id);
+                      setTestResult(null);
+                    }}
+                    className={`text-[10px] px-2 py-0.5 rounded border transition ${
+                      inputTransModel === m.id || (m.id === 'openai/gpt-6-luna' && inputTransModel === 'OpenAI: GPT-6 Luna') || (m.id === 'openai/gpt-6-luna-pro' && inputTransModel === 'OpenAI: GPT-6 Luna Pro')
+                        ? 'bg-[#099767]/20 border-[#099767] text-[#34d399] font-semibold'
+                        : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
               <p className="text-[10px] text-emerald-400/90 leading-relaxed">
                 اگر ارور ۴۰۳ دریافت کردید، بررسی کنید در پنل هرمز (app.hormouz.net/keys) تیک مجاز بودن کدام مدل چت/ترجمه برای این کلید فعال است و نام دقیق آن را اینجا قرار دهید.
               </p>

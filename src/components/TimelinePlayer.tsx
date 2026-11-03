@@ -1,5 +1,13 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { SubtitleItem } from '../types/dubbing';
+import {
+  SubtitleItem,
+  BulkSpeedHistorySnapshot,
+  DetectedOverlap,
+  OverlapSummary,
+  OverlapSeverity,
+  AutoFixResult,
+  DEFAULT_TIMELINE_PLACEMENT_CONFIG,
+} from '../types/dubbing';
 import {
   Play,
   Pause,
@@ -30,14 +38,32 @@ import {
   ChevronLeft,
   ChevronRight,
   Info,
+  ShieldAlert,
+  ShieldCheck,
+  Eye,
+  Settings2,
+  Scissors,
 } from 'lucide-react';
 import { formatPlayerTime } from '../utils/srtParser';
 import {
   getAudioContext,
   renderDubbedTrack,
   decodeBase64ToAudioBuffer,
+  audioBufferToWav,
 } from '../utils/audioMixer';
 import { deriveProjectOutputName } from '../utils/fileNaming';
+import {
+  analyzeTimelineCollisions,
+  evaluateSynchronization,
+  profileAudioSilence,
+  stretchAudioViaRubberBandServer,
+  timeStretchAudioBufferWSOLA,
+} from '../utils/syncEngine';
+import { detectAudioOverlaps, autoResolveAllOverlaps } from '../utils/overlapEngine';
+import { undoBulkSpeedChanges } from '../utils/bulkSpeedController';
+import { autoFixEntireTimeline } from '../utils/autoFixEngine';
+import { BulkSpeedModal } from './BulkSpeedModal';
+import { AutoFixDashboardModal } from './AutoFixDashboardModal';
 
 interface TimelinePlayerProps {
   subtitles: SubtitleItem[];
@@ -58,6 +84,15 @@ interface TimelinePlayerProps {
   onMixRendered?: (res: { wavBlob: Blob; audioBuffer: AudioBuffer; totalDuration: number }) => void;
   sharedWavBlob?: Blob | null;
   sharedAudioBuffer?: AudioBuffer | null;
+}
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }
 
 interface OverlapDetail {
@@ -105,6 +140,25 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
   const [selectedSubId, setSelectedSubId] = useState<number | null>(null);
   const [draggingSubId, setDraggingSubId] = useState<number | null>(null);
   const [soloPlayingId, setSoloPlayingId] = useState<number | null>(null);
+  const [playingConflictPair, setPlayingConflictPair] = useState<string | null>(null);
+
+  // Bulk Speed Control Modal & History Snapshot State
+  const [isBulkSpeedModalOpen, setIsBulkSpeedModalOpen] = useState<boolean>(false);
+  const [bulkSpeedHistorySnapshot, setBulkSpeedHistorySnapshot] = useState<BulkSpeedHistorySnapshot | null>(null);
+
+  // One-Click Auto Fix Timeline State
+  const [autoFixResult, setAutoFixResult] = useState<AutoFixResult | null>(null);
+  const [isAutoFixModalOpen, setIsAutoFixModalOpen] = useState<boolean>(false);
+  const [isAutoFixing, setIsAutoFixing] = useState<boolean>(false);
+  const [autoFixProgress, setAutoFixProgress] = useState<{ pct: number; msg: string }>({ pct: 0, msg: '' });
+  const autoFixAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Flexible Timeline Placement & Zero-Silence Auto-Fix state
+  const [isPlacementConfigOpen, setIsPlacementConfigOpen] = useState<boolean>(false);
+  const [autoFixPlacementEnabled, setAutoFixPlacementEnabled] = useState<boolean>(true);
+  const [maxEarlyShift, setMaxEarlyShift] = useState<number>(2.0);
+  const [maxLateShift, setMaxLateShift] = useState<number>(2.0);
+  const [autoFixZeroSilence, setAutoFixZeroSilence] = useState<boolean>(true);
 
   // Rendered Output Audio State
   const [renderedMixBuffer, setRenderedMixBuffer] = useState<AudioBuffer | null>(
@@ -116,6 +170,50 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
   const [isRenderingMix, setIsRenderingMix] = useState(false);
   const [renderProgressMsg, setRenderProgressMsg] = useState('');
   const [renderError, setRenderError] = useState<string | null>(null);
+  const [isSyncingOverlaps, setIsSyncingOverlaps] = useState<boolean>(false);
+  const [syncProgressMsg, setSyncProgressMsg] = useState<string>('');
+  const [syncSuccessMsg, setSyncSuccessMsg] = useState<string | null>(null);
+
+
+  // Automatically measure and cache audio duration and silence profile if subtitles have audioBase64 but missing audioDuration
+  useEffect(() => {
+    if (!onUpdateAllSubtitles || subtitles.length === 0) return;
+    const needsMeasure = subtitles.filter((s) => Boolean(s.audioBase64) && (!s.audioDuration || s.audioDuration <= 0));
+    if (needsMeasure.length === 0) return;
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const updated = await Promise.all(
+          subtitles.map(async (sub) => {
+            if (sub.audioBase64 && (!sub.audioDuration || sub.audioDuration <= 0)) {
+              try {
+                const buf = await decodeBase64ToAudioBuffer(sub.audioBase64);
+                const prof = profileAudioSilence(buf);
+                return {
+                  ...sub,
+                  audioDuration: Number(buf.duration.toFixed(3)),
+                  effectiveDuration: Number(prof.effectiveDuration.toFixed(3)),
+                  leadingSilenceSec: Number(prof.leadingSilenceSec.toFixed(3)),
+                  trailingSilenceSec: Number(prof.trailingSilenceSec.toFixed(3)),
+                };
+              } catch (_) {
+                return sub;
+              }
+            }
+            return sub;
+          })
+        );
+        if (!cancelled) {
+          onUpdateAllSubtitles(updated);
+        }
+      } catch (_) {}
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [subtitles, onUpdateAllSubtitles]);
 
   // Synchronize state when sharedAudioBuffer or sharedWavBlob from parent changes
   useEffect(() => {
@@ -168,52 +266,68 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
   }
   maxDuration = Math.ceil(maxDuration + 1.0);
 
-  // Calculate Overlaps / Collisions across all voice clips
+  // Comprehensive Overlap Detection Engine
+  const overlapSummary: OverlapSummary = useMemo(() => {
+    return detectAudioOverlaps(subtitles);
+  }, [subtitles]);
+
+  // Backward-compatible overlaps list and map
   const overlaps: OverlapDetail[] = useMemo(() => {
-    const list: OverlapDetail[] = [];
-    if (subtitles.length < 2) return list;
+    return overlapSummary.overlaps.map((ov) => {
+      const prevIdx = subtitles.findIndex((s) => s.id === ov.firstSubId);
+      const nextIdx = subtitles.findIndex((s) => s.id === ov.secondSubId);
+      return {
+        prevSubId: ov.firstSubId,
+        nextSubId: ov.secondSubId,
+        prevIdx,
+        nextIdx,
+        overlapSec: ov.overlapDurationSec,
+        prevEnd: ov.firstEnd,
+        nextStart: ov.secondStart,
+      };
+    });
+  }, [overlapSummary, subtitles]);
 
-    // Sort by effective start time
-    const sorted = subtitles
-      .map((sub, idx) => ({
-        sub,
-        idx,
-        effectiveStart: Math.max(0, sub.start + (sub.audioOffset || 0)),
-        duration: sub.audioDuration || Math.max(0.6, sub.end - sub.start),
-      }))
-      .sort((a, b) => a.effectiveStart - b.effectiveStart);
-
-    for (let i = 0; i < sorted.length - 1; i++) {
-      const current = sorted[i];
-      const next = sorted[i + 1];
-      const currentEnd = current.effectiveStart + current.duration;
-
-      // Overlap detected if current voice ends after next voice starts
-      if (currentEnd > next.effectiveStart + 0.05) {
-        const overlapSec = Number((currentEnd - next.effectiveStart).toFixed(2));
-        list.push({
-          prevSubId: current.sub.id,
-          nextSubId: next.sub.id,
-          prevIdx: current.idx,
-          nextIdx: next.idx,
-          overlapSec,
-          prevEnd: currentEnd,
-          nextStart: next.effectiveStart,
+  // Map of sub IDs involved in collisions for fast badge & highlight lookup
+  const collidingSubIdMap = useMemo(() => {
+    const map = new Map<
+      number,
+      {
+        isPrev: boolean;
+        isNext: boolean;
+        overlapSec: number;
+        severity: OverlapSeverity;
+        isIntentional: boolean;
+        isSilence: boolean;
+        partnerSubId: number;
+      }
+    >();
+    for (const ov of overlapSummary.overlaps) {
+      if (!map.has(ov.firstSubId) || ov.severity === 'severe') {
+        map.set(ov.firstSubId, {
+          isPrev: true,
+          isNext: false,
+          overlapSec: ov.overlapDurationSec,
+          severity: ov.severity,
+          isIntentional: ov.isIntentional,
+          isSilence: ov.isSilenceOverlap,
+          partnerSubId: ov.secondSubId,
+        });
+      }
+      if (!map.has(ov.secondSubId) || ov.severity === 'severe') {
+        map.set(ov.secondSubId, {
+          isPrev: false,
+          isNext: true,
+          overlapSec: ov.overlapDurationSec,
+          severity: ov.severity,
+          isIntentional: ov.isIntentional,
+          isSilence: ov.isSilenceOverlap,
+          partnerSubId: ov.firstSubId,
         });
       }
     }
-    return list;
-  }, [subtitles]);
-
-  // Set of sub IDs involved in collisions for fast badge & highlight lookup
-  const collidingSubIdMap = useMemo(() => {
-    const map = new Map<number, { isPrev: boolean; isNext: boolean; overlapSec: number }>();
-    for (const ov of overlaps) {
-      map.set(ov.prevSubId, { isPrev: true, isNext: false, overlapSec: ov.overlapSec });
-      map.set(ov.nextSubId, { isPrev: false, isNext: true, overlapSec: ov.overlapSec });
-    }
     return map;
-  }, [overlaps]);
+  }, [overlapSummary]);
 
   // Stop playback cleanly
   const stopPlayback = () => {
@@ -337,14 +451,87 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     }
   };
 
+  // Plays two conflicting dialogue audio clips together with their exact relative timeline timing
+  const handlePlayConflictPair = async (firstSubId: number, secondSubId: number) => {
+    const pairKey = `${firstSubId}_${secondSubId}`;
+    if (playingConflictPair === pairKey) {
+      stopPlayback();
+      setPlayingConflictPair(null);
+      return;
+    }
+    stopPlayback();
+
+    const firstSub = subtitles.find((s) => s.id === firstSubId);
+    const secondSub = subtitles.find((s) => s.id === secondSubId);
+    if (!firstSub || !secondSub) return;
+
+    const firstAudio = firstSub.processedAudioBase64 || firstSub.audioBase64 || firstSub.originalAudioBase64;
+    const secondAudio = secondSub.processedAudioBase64 || secondSub.audioBase64 || secondSub.originalAudioBase64;
+    if (!firstAudio || !secondAudio) return;
+
+    try {
+      const ctx = getAudioContext();
+      const [buf1, buf2] = await Promise.all([
+        decodeBase64ToAudioBuffer(firstAudio),
+        decodeBase64ToAudioBuffer(secondAudio),
+      ]);
+
+      const source1 = ctx.createBufferSource();
+      const source2 = ctx.createBufferSource();
+      source1.buffer = buf1;
+      source2.buffer = buf2;
+
+      source1.connect(ctx.destination);
+      source2.connect(ctx.destination);
+
+      const firstStart = Math.max(0, firstSub.start + (firstSub.audioOffset || 0));
+      const secondStart = Math.max(0, secondSub.start + (secondSub.audioOffset || 0));
+      const deltaSec = secondStart - firstStart;
+
+      const now = ctx.currentTime;
+      if (deltaSec >= 0) {
+        source1.start(now);
+        source2.start(now + deltaSec);
+      } else {
+        source1.start(now + Math.abs(deltaSec));
+        source2.start(now);
+      }
+
+      setPlayingConflictPair(pairKey);
+      const totalDur = Math.max(buf1.duration, Math.abs(deltaSec) + buf2.duration);
+      setTimeout(() => {
+        setPlayingConflictPair((prev) => (prev === pairKey ? null : prev));
+      }, Math.ceil((totalDur + 0.3) * 1000));
+    } catch (err) {
+      console.error('Failed to play conflict pair', err);
+      setPlayingConflictPair(null);
+    }
+  };
+
+  // Toggle temporary mute for a single line in preview and export
+  const handleToggleMuteSegment = (subId: number) => {
+    const sub = subtitles.find((s) => s.id === subId);
+    if (!sub || !onUpdateSubtitle) return;
+    onUpdateSubtitle(subId, { isMuted: !sub.isMuted });
+  };
+
+  // Toggle intentional overlap preservation for a line
+  const handleToggleIntentionalOverlap = (subId: number) => {
+    const sub = subtitles.find((s) => s.id === subId);
+    if (!sub || !onUpdateSubtitle) return;
+    onUpdateSubtitle(subId, { isIntentionalOverlap: !sub.isIntentionalOverlap });
+  };
+
   // Fingerprint of all inputs including audioOffsets that determine the final rendered audio file
   const mixFingerprint = useMemo(() => {
     const subsHash = subtitles
       .map(
         (s) =>
-          `${s.id}_${s.start.toFixed(2)}_${s.end.toFixed(2)}_${(s.audioOffset || 0).toFixed(2)}_${
-            s.audioBase64
-              ? `${s.audioBase64.length}_${s.audioBase64.slice(0, 16)}_${s.audioBase64.slice(-16)}`
+          `${s.id}_${s.start.toFixed(2)}_${s.end.toFixed(2)}_${(s.audioOffset || 0).toFixed(2)}_${(s.timeStretchRatio || 1.0).toFixed(2)}_${(s.playbackRate || 1.0).toFixed(2)}_${(s.appliedSpeed || 1.0).toFixed(2)}_${s.isMuted ? 'muted' : 'active'}_${
+            s.processedAudioBase64
+              ? `proc_${s.processedAudioBase64.length}_${s.processedAudioBase64.slice(0, 16)}`
+              : s.audioBase64
+              ? `raw_${s.audioBase64.length}_${s.audioBase64.slice(0, 16)}`
               : 'none'
           }`
       )
@@ -488,45 +675,111 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     onUpdateSubtitle?.(subId, { audioOffset: 0 });
   };
 
-  // Automatic One-Click Overlap Resolver: adjusts offsets so no voice overlaps another!
-  const handleAutoResolveOverlaps = () => {
-    if (overlaps.length === 0 || !onUpdateAllSubtitles) return;
+  // One-Click Intelligent Audio Timeline Auto-Fix:
+  // Analyzes physical audio durations, dead digital margins (silence), and active speech intervals.
+  // Performs weighted interval scheduling to eliminate active speech overlaps, minimizes start-time delay,
+  // trims dead silence, applies pitch-preserved WSOLA time-stretch (0.85x to 1.35x), and verifies the final result.
+  const handleAutoFixAll = async () => {
+    if (!onUpdateAllSubtitles || subtitles.length === 0 || isAutoFixing) return;
 
-    // Sort by chronological effective start
-    const sorted = [...subtitles].sort((a, b) => {
-      const startA = a.start + (a.audioOffset || 0);
-      const startB = b.start + (b.audioOffset || 0);
-      return startA - startB;
-    });
+    setIsAutoFixing(true);
+    setAutoFixProgress({ pct: 0, msg: 'آغاز تحلیل جامع و هوشمند تایم‌لاین صوتی...' });
+    setSyncSuccessMsg(null);
+    const abortController = new AbortController();
+    autoFixAbortControllerRef.current = abortController;
 
-    const offsetMap = new Map<number, number>();
-    let lastVoiceEnd = 0;
+    try {
+      const ctx = getAudioContext();
+      const result = await autoFixEntireTimeline(
+        subtitles,
+        {
+          zeroSilenceEnabled: autoFixZeroSilence,
+          placement: {
+            ...DEFAULT_TIMELINE_PLACEMENT_CONFIG,
+            enabled: autoFixPlacementEnabled,
+            maxEarlyShiftSeconds: maxEarlyShift,
+            maxLateShiftSeconds: maxLateShift,
+          },
+          maxEarlyShiftSeconds: maxEarlyShift,
+          maxLateShiftSeconds: maxLateShift,
+        },
+        ctx,
+        (pct: number, msg: string) => {
+          setAutoFixProgress({ pct, msg });
+        },
+        abortController.signal
+      );
 
-    for (let i = 0; i < sorted.length; i++) {
-      const item = sorted[i];
-      const origStart = item.start;
-      const currentOffset = item.audioOffset || 0;
-      const currentStart = Math.max(0, origStart + currentOffset);
-      const dur = item.audioDuration || Math.max(0.6, item.end - item.start);
-
-      // If current voice collides with previous voice
-      if (currentStart < lastVoiceEnd + 0.08) {
-        // Shift this line so it starts cleanly 80ms after previous ends
-        const cleanStart = lastVoiceEnd + 0.08;
-        const newOffset = Math.round((cleanStart - origStart) * 100) / 100;
-        offsetMap.set(item.id, newOffset);
-        lastVoiceEnd = cleanStart + dur;
-      } else {
-        offsetMap.set(item.id, currentOffset);
-        lastVoiceEnd = currentStart + dur;
+      setAutoFixResult(result);
+      if (result.updatedSubtitles && result.updatedSubtitles.length > 0) {
+        onUpdateAllSubtitles(result.updatedSubtitles);
       }
+      setIsAutoFixModalOpen(true);
+      if (result.success) {
+        setSyncSuccessMsg(result.messageFa);
+      }
+    } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.includes('aborted')) {
+        console.log('[AutoFix] Operation cancelled by user.');
+        setSyncProgressMsg('عملیات اصلاح هوشمند توسط کاربر متوقف شد.');
+      } else {
+        console.error('[handleAutoFixAll Error]:', err);
+        alert('خطا در اصلاح هوشمند تایم‌لاین: ' + (err.message || 'مشکلی رخ داد'));
+      }
+    } finally {
+      setIsAutoFixing(false);
+      autoFixAbortControllerRef.current = null;
     }
+  };
 
-    const updated = subtitles.map((s) => ({
-      ...s,
-      audioOffset: offsetMap.has(s.id) ? offsetMap.get(s.id) : s.audioOffset,
-    }));
-    onUpdateAllSubtitles(updated);
+  const handleCancelAutoFix = () => {
+    if (autoFixAbortControllerRef.current) {
+      autoFixAbortControllerRef.current.abort();
+    }
+    setIsAutoFixing(false);
+  };
+
+  const handleUndoAutoFix = () => {
+    if (autoFixResult?.originalSubtitlesSnapshot && onUpdateAllSubtitles) {
+      onUpdateAllSubtitles(autoFixResult.originalSubtitlesSnapshot);
+      setAutoFixResult(null);
+      setSyncSuccessMsg('تمام اصلاحات هوشمند به حالت اولیه بازگردانده شدند.');
+    }
+  };
+
+  // Intelligent Audio Synchronization Resolver: Uses Pitch-Preserving Time-Stretch
+  // Resolves ALL dialogue overlaps intelligently with a single click without moving dialogue start timestamps!
+  const handleIntelligentOverlapSync = async () => {
+    if (!onUpdateAllSubtitles || subtitles.length === 0 || isSyncingOverlaps) return;
+
+    setIsSyncingOverlaps(true);
+    setSyncProgressMsg('در حال تحلیل و برطرف‌سازی هوشمند تداخل‌ها...');
+    setSyncSuccessMsg(null);
+
+    try {
+      const ctx = getAudioContext();
+      const result = await autoResolveAllOverlaps(
+        subtitles,
+        ctx,
+        (current, total, msg) => {
+          setSyncProgressMsg(`[${current}/${total}] ${msg}`);
+        }
+      );
+
+      if (result.resolvedCount > 0) {
+        setBulkSpeedHistorySnapshot(result.historySnapshot);
+        onUpdateAllSubtitles(result.updatedSubtitles);
+        setSyncSuccessMsg(result.messageFa);
+      } else {
+        setSyncSuccessMsg('تمام دیالوگ‌ها در بازه زمانی تعیین‌شده قرار دارند و هیچ تداخلی وجود ندارد.');
+      }
+    } catch (err: any) {
+      console.error('[handleIntelligentOverlapSync Error]:', err);
+      alert('خطا در برطرف‌سازی هوشمند تداخل‌ها: ' + (err.message || 'مشکلی رخ داد'));
+    } finally {
+      setIsSyncingOverlaps(false);
+      setSyncProgressMsg('');
+    }
   };
 
   // Reset all offsets back to 0.00s (strictly anchored to subtitle start)
@@ -625,6 +878,75 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
         {/* Mix Output Status Badge & Quick Download */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Primary Auto Fix All Audio Button */}
+          <button
+            type="button"
+            onClick={handleAutoFixAll}
+            disabled={isAutoFixing}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-[#10b981] to-[#099767] hover:from-emerald-300 hover:to-[#10b981] disabled:opacity-50 text-slate-950 text-xs font-black transition shadow-md shadow-emerald-950/40 cursor-pointer animate-pulse hover:animate-none"
+            title="بررسی جامع خط زمان، حذف سکوت‌ها، فشرده‌سازی کنترل‌شده WSOLA و برطرف‌سازی هوشمند تداخل‌ها با ۱ کلیک"
+          >
+            {isAutoFixing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                <span>در حال اصلاح هوشمند...</span>
+              </>
+            ) : (
+              <>
+                <Sparkles className="w-3.5 h-3.5 text-slate-950" />
+                <span>⚡ بررسی و اصلاح هوشمند همه صداها</span>
+              </>
+            )}
+          </button>
+
+          {autoFixResult && (
+            <button
+              type="button"
+              onClick={() => setIsAutoFixModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition shadow-sm cursor-pointer"
+              title="مشاهده آمار، معیارهای ۸ گانه و جزئیات آخرین اصلاح هوشمند"
+            >
+              <Eye className="w-3.5 h-3.5 text-emerald-400" />
+              <span>گزارش اصلاحات</span>
+            </button>
+          )}
+
+          {autoFixResult?.originalSubtitlesSnapshot && (
+            <button
+              type="button"
+              onClick={handleUndoAutoFix}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition shadow-sm cursor-pointer"
+              title="بازگرداندن تمام دیالوگ‌ها و صداها به وضعیت پیش از اصلاح هوشمند"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Undo اصلاح هوشمند</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setIsPlacementConfigOpen(!isPlacementConfigOpen)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition cursor-pointer ${
+              isPlacementConfigOpen
+                ? 'bg-slate-750 border-cyan-400 text-cyan-300'
+                : 'bg-slate-800 hover:bg-slate-700 border-slate-700 text-slate-300'
+            }`}
+            title="تنظیمات پیشرفته جای‌گذاری منعطف و حذف سکوت"
+          >
+            <Settings2 className="w-3.5 h-3.5" />
+            <span>تنظیمات اصلاح</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setIsBulkSpeedModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/20 to-[#099767]/20 hover:from-emerald-500/30 hover:to-[#099767]/30 border border-emerald-500/40 text-emerald-300 text-xs font-semibold transition shadow-sm cursor-pointer"
+            title="تنظیم سرعت دسته‌جمعی دیالوگ‌ها (Bulk Speed Control)"
+          >
+            <Sliders className="w-3.5 h-3.5 text-[#34d399]" />
+            <span>تنظیم سرعت دسته‌جمعی</span>
+          </button>
+
           {isRenderingMix ? (
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#099767]/10 border border-[#099767]/30 text-[#34d399] text-xs font-medium animate-pulse">
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -667,58 +989,283 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
         </div>
       </div>
 
-      {/* Overlap & Collision Alert Banner: Highlights overlapping audio segments */}
-      {overlaps.length > 0 ? (
-        <div className="mb-6 p-4 rounded-2xl bg-rose-950/40 border border-rose-500/50 text-rose-200 text-xs shadow-lg animate-in fade-in duration-200">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-start gap-2.5">
-              <AlertTriangle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5 animate-bounce" />
+      {/* Advanced Auto-Fix & Flexible Placement Settings Panel */}
+      {isPlacementConfigOpen && (
+        <div className="mb-6 p-4 rounded-2xl bg-slate-900/90 border border-slate-800 shadow-xl space-y-3 animate-in fade-in duration-200">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <span className="text-xs font-bold text-slate-200 flex items-center gap-2">
+              <Settings2 className="w-4 h-4 text-emerald-400" />
+              تنظیمات پیشرفته جای‌گذاری منعطف و حذف سکوت (Auto-Fix Settings)
+            </span>
+            <span className="text-[11px] text-slate-400">
+              اعمال روی پردازش با کلید «بررسی و اصلاح هوشمند همه صداها»
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            {/* Toggle Zero Silence */}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-col justify-between">
               <div>
-                <div className="font-bold text-rose-300 text-sm flex items-center gap-2">
-                  <span>هشدار تداخل صداها: {overlaps.length} دیالوگ روی جمله بعدی می‌افتد!</span>
-                  <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-[11px] font-mono border border-rose-500/30">
-                    Collision Detected
+                <label className="font-bold text-slate-200 flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoFixZeroSilence}
+                    onChange={(e) => setAutoFixZeroSilence(e.target.checked)}
+                    className="rounded accent-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>حذف سکوت زائد (Zero Silence)</span>
+                </label>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  پیرایش خودکار سکوت مرده در آغاز و پایان با حفظ پدینگ امن ۲۵ میلی‌ثانیه.
+                </p>
+              </div>
+            </div>
+
+            {/* Toggle Flexible Placement */}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800 flex flex-col justify-between">
+              <div>
+                <label className="font-bold text-slate-200 flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={autoFixPlacementEnabled}
+                    onChange={(e) => setAutoFixPlacementEnabled(e.target.checked)}
+                    className="rounded accent-emerald-500 w-4 h-4 cursor-pointer"
+                  />
+                  <span>جای‌گذاری منعطف (Flexible Placement)</span>
+                </label>
+                <p className="text-[11px] text-slate-400 mt-1 leading-relaxed">
+                  اجازه شیفت زمانی جزیی به جلو یا عقب در صورت وجود فضای امن برای رفع تداخل بدون افزایش سرعت.
+                </p>
+              </div>
+            </div>
+
+            {/* Max Early Shift Slider */}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+              <div className="flex justify-between font-bold text-slate-200 mb-1">
+                <span>حداکثر شیفت به جلو:</span>
+                <span className="font-mono text-cyan-400">{maxEarlyShift.toFixed(1)}s</span>
+              </div>
+              <input
+                type="range"
+                min="0.0"
+                max="3.0"
+                step="0.1"
+                value={maxEarlyShift}
+                disabled={!autoFixPlacementEnabled}
+                onChange={(e) => setMaxEarlyShift(parseFloat(e.target.value))}
+                className="w-full accent-cyan-400 disabled:opacity-40 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
+                <span>0.0s</span>
+                <span>1.5s</span>
+                <span>3.0s</span>
+              </div>
+            </div>
+
+            {/* Max Late Shift Slider */}
+            <div className="p-3 rounded-xl bg-slate-950/60 border border-slate-800">
+              <div className="flex justify-between font-bold text-slate-200 mb-1">
+                <span>حداکثر شیفت به عقب:</span>
+                <span className="font-mono text-indigo-400">{maxLateShift.toFixed(1)}s</span>
+              </div>
+              <input
+                type="range"
+                min="0.0"
+                max="3.0"
+                step="0.1"
+                value={maxLateShift}
+                disabled={!autoFixPlacementEnabled}
+                onChange={(e) => setMaxLateShift(parseFloat(e.target.value))}
+                className="w-full accent-indigo-400 disabled:opacity-40 cursor-pointer"
+              />
+              <div className="flex justify-between text-[10px] text-slate-500 mt-1 font-mono">
+                <span>0.0s</span>
+                <span>1.5s</span>
+                <span>3.0s</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Active One-Click Auto Fix Progress Bar */}
+      {isAutoFixing && (
+        <div className="mb-6 p-4 rounded-2xl bg-slate-950/90 border border-emerald-500/40 shadow-xl animate-in fade-in duration-150">
+          <div className="flex items-center justify-between gap-4 mb-2">
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-emerald-400" />
+              <span className="text-xs font-bold text-emerald-300">
+                در حال بررسی و اصلاح هوشمند تایم‌لاین صوتی...
+              </span>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-mono text-emerald-400 font-bold">
+                {Math.round(autoFixProgress.pct)}%
+              </span>
+              <button
+                type="button"
+                onClick={handleCancelAutoFix}
+                className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/40 text-rose-300 text-xs transition cursor-pointer"
+              >
+                لغو عملیات
+              </button>
+            </div>
+          </div>
+          <div className="w-full bg-slate-800 rounded-full h-2 overflow-hidden mb-2">
+            <div
+              className="bg-gradient-to-r from-emerald-500 to-[#34d399] h-2 rounded-full transition-all duration-200"
+              style={{ width: `${Math.max(5, Math.min(100, autoFixProgress.pct))}%` }}
+            />
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed font-mono">
+            {autoFixProgress.msg}
+          </p>
+        </div>
+      )}
+
+      {/* Overlap & Collision Alert Banner: Detailed Summary of all detected overlaps */}
+      {overlapSummary.totalOverlaps > 0 ? (
+        <div className="mb-6 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-950/40 via-slate-900 to-amber-950/40 border border-amber-500/50 text-amber-200 text-xs shadow-lg animate-in fade-in duration-200">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <Sparkles className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="font-bold text-amber-300 text-sm flex flex-wrap items-center gap-2">
+                  <span>خلاصه وضعیت تداخل‌های زمانی:</span>
+                  <span className="px-2 py-0.5 rounded-md bg-amber-500/20 text-amber-300 text-[11px] font-mono border border-amber-500/30">
+                    {overlapSummary.totalOverlaps} مورد تداخل ({overlapSummary.totalOverlapDurationSec} ثانیه کل تداخل)
                   </span>
+                  {overlapSummary.severeCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-md bg-rose-500/20 text-rose-300 text-[11px] font-mono border border-rose-500/40 font-bold">
+                      {overlapSummary.severeCount} مورد شدید
+                    </span>
+                  )}
+                  {overlapSummary.intentionalCount > 0 && (
+                    <span className="px-2 py-0.5 rounded-md bg-purple-500/20 text-purple-300 text-[11px] font-mono border border-purple-500/40">
+                      {overlapSummary.intentionalCount} هم‌پوشانی تعمدی (حفظ شده)
+                    </span>
+                  )}
                 </div>
-                <div className="text-rose-300/80 mt-1 leading-relaxed">
-                  مدت زمان گویندگی برخی جملات بیشتر از فاصله تا جمله بعدی است (مثلاً خط{' '}
-                  {overlaps.map((o) => `#${o.prevIdx + 1} با #${o.nextIdx + 1} (${o.overlapSec}s)`).slice(0, 3).join('، ')}
-                  {overlaps.length > 3 ? ` و ${overlaps.length - 3} مورد دیگر` : ''}).
-                  می‌توانید صداها را عقب/جلو کنید یا با یک کلیک تداخل‌ها را خودکار برطرف نمایید.
+                <div className="text-amber-300/80 mt-1.5 leading-relaxed">
+                  تعداد <strong>{overlapSummary.affectedSegmentCount}</strong> دیالوگ دارای هم‌پوشانی زمانی هستند. به جای جابجا کردن زمان دیالوگ‌ها (که سینک تصویر را به هم می‌زند)، می‌توانید با کلید تنظیم سرعت دسته‌جمعی یا فشرده‌سازی هوشمند WSOLA تداخل‌ها را بدون تغییر لحن صدا برطرف کنید.
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Primary 1-Click Intelligent Timeline Auto Fixer */}
               <button
                 type="button"
-                onClick={handleAutoResolveOverlaps}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-rose-500 to-[#099767] hover:from-rose-400 hover:to-[#10b981] text-slate-950 font-bold transition text-xs shadow-md"
-                title="جابجایی خودکار صوت‌ها جهت برطرف کردن تداخل جملات"
+                onClick={handleAutoFixAll}
+                disabled={isAutoFixing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 via-[#10b981] to-[#099767] hover:from-emerald-300 hover:to-[#10b981] disabled:opacity-50 text-slate-950 font-extrabold transition text-xs shadow-lg shadow-emerald-950/50 cursor-pointer animate-pulse hover:animate-none"
+                title="بررسی کامل تایم‌لاین، برش سکوت‌های زائد، تنظیم هوشمند و رفع تمام تداخل‌ها با ۱ کلیک"
               >
-                <Wand2 className="w-3.5 h-3.5" />
-                <span>رفع خودکار تداخل‌ها (Shift To Fit)</span>
+                {isAutoFixing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                    <span>{autoFixProgress.msg || 'در حال اصلاح هوشمند...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 text-slate-950" />
+                    <span>⚡ اصلاح هوشمند همه صداها (Auto Fix All)</span>
+                  </>
+                )}
               </button>
+
+              {autoFixResult && (
+                <button
+                  type="button"
+                  onClick={() => setIsAutoFixModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 font-semibold transition text-xs shadow-sm cursor-pointer"
+                  title="مشاهده آمار و گزارش آخرین اصلاح هوشمند"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>مشاهده گزارش</span>
+                </button>
+              )}
+
+              {autoFixResult?.originalSubtitlesSnapshot && (
+                <button
+                  type="button"
+                  onClick={handleUndoAutoFix}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs border border-slate-700 cursor-pointer"
+                  title="بازگردانی حالت قبل از اصلاح هوشمند"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Undo اصلاح</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setIsBulkSpeedModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-semibold transition text-xs shadow-sm cursor-pointer"
+                title="تنظیم دستی و جزئی‌تر سرعت در پنل دسته‌جمعی"
+              >
+                <Sliders className="w-3.5 h-3.5 text-[#34d399]" />
+                <span>تنظیم پیشرفته دسته‌جمعی</span>
+              </button>
+
+              {bulkSpeedHistorySnapshot && !autoFixResult?.originalSubtitlesSnapshot && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const restored = undoBulkSpeedChanges(subtitles, bulkSpeedHistorySnapshot);
+                    onUpdateAllSubtitles?.(restored);
+                    setBulkSpeedHistorySnapshot(null);
+                    setSyncSuccessMsg('تغییرات به حالت قبلی بازگردانده شد.');
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs border border-slate-700"
+                  title="بازگردانی حالت قبل از برطرف‌سازی تداخل‌ها"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Undo</span>
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={handleResetAllOffsets}
                 className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 transition text-xs border border-slate-700"
-                title="بازنشانی تمام صداها به زمان شروع زیرنویس"
+                title="بازنشانی تمام صداها به زمان دقیق شروع زیرنویس ویدیوی اصلی"
               >
-                ریست آفست‌ها
+                ریست آفست‌ها (Zero Drift)
               </button>
             </div>
           </div>
         </div>
       ) : (
-        <div className="mb-6 p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-3">
+        <div className="mb-6 p-3 rounded-2xl bg-emerald-950/30 border border-emerald-500/30 text-emerald-300 text-xs flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>هیچ تداخل صوتی وجود ندارد؛ تمام جملات به ترتیب و بدون هم‌پوشانی پایان می‌یابند.</span>
+            <span>{syncSuccessMsg || 'تمام جملات با تصویر و صدای ویدیوی اصلی ۱۰۰٪ همگام و منطبق هستند.'}</span>
           </div>
-          <div className="text-[11px] text-emerald-400/80 font-mono">
-            {subtitles.length} دیالوگ منطبق با تصویر
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleAutoFixAll}
+              disabled={isAutoFixing}
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-200 text-xs font-bold transition cursor-pointer"
+              title="اجرای تحلیل عمیق و بهینه‌سازی فاصله‌ها، سکوت‌ها و سینک صداها"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+              <span>اجرای بهینه‌سازی هوشمند خط زمان</span>
+            </button>
+            {autoFixResult && (
+              <button
+                type="button"
+                onClick={() => setIsAutoFixModalOpen(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 text-xs transition border border-slate-700 cursor-pointer"
+              >
+                <Eye className="w-3 h-3 text-emerald-400" />
+                <span>گزارش اصلاحات</span>
+              </button>
+            )}
+            <div className="text-[11px] text-emerald-400/80 font-mono">
+              {subtitles.length} دیالوگ منطبق با تصویر
+            </div>
           </div>
         </div>
       )}
@@ -945,8 +1492,24 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                   const isCurrentPlaying = currentTime >= effectiveStart && currentTime <= effectiveStart + effectiveDuration;
                   const isSelected = selectedSubId === sub.id;
                   const isDragging = draggingSubId === sub.id;
-                  const collisionInfo = collidingSubIdMap.get(sub.id);
-                  const hasAudio = Boolean(sub.audioBase64);
+                  const hasAudio = Boolean(sub.audioBase64 || sub.originalAudioBase64);
+
+                  // Extract precise overlap metadata for this segment
+                  const subOverlaps = overlapSummary.segmentOverlapMap[sub.id] || [];
+                  const maxSeverity = subOverlaps.reduce<OverlapSeverity>((acc, ov) => {
+                    if (ov.severity === 'severe') return 'severe';
+                    if (ov.severity === 'moderate' && acc !== 'severe') return 'moderate';
+                    if (ov.severity === 'minor' && acc === 'none') return 'minor';
+                    return acc;
+                  }, 'none');
+                  const isIntentional = Boolean(sub.isIntentionalOverlap || subOverlaps.some((ov) => ov.isIntentional));
+                  const isMuted = Boolean(sub.isMuted);
+
+                  // Primary conflicting partner
+                  const primaryConflict = subOverlaps[0];
+                  const partnerSub = primaryConflict
+                    ? subtitles.find((s) => s.id === (primaryConflict.firstSubId === sub.id ? primaryConflict.secondSubId : primaryConflict.firstSubId))
+                    : null;
 
                   return (
                     <div
@@ -956,12 +1519,20 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                         e.stopPropagation();
                         setSelectedSubId(sub.id);
                       }}
-                      title={`صوت دیالوگ #${idx + 1} | آفست: ${offset > 0 ? `+${offset}` : offset} ثانیه (برای جابجایی بکشید)`}
+                      title={`صوت دیالوگ #${idx + 1} | آفست: ${offset > 0 ? `+${offset}` : offset} ثانیه | سرعت: ${(sub.appliedSpeed || sub.timeStretchRatio || 1.0).toFixed(2)}x${isMuted ? ' (بی‌صدا)' : ''}${subOverlaps.length > 0 ? ` | تداخل: ${primaryConflict?.overlapDurationSec}s` : ''}`}
                       className={`absolute top-1 bottom-1 rounded-xl px-2.5 flex flex-col justify-center border transition-all text-[10px] overflow-hidden select-none cursor-ew-resize group ${
                         isDragging
                           ? 'border-cyan-400 bg-cyan-950/90 text-cyan-200 ring-2 ring-cyan-400 z-30 shadow-2xl scale-[1.03]'
-                          : collisionInfo
-                          ? 'border-rose-500 bg-rose-950/75 text-rose-200 ring-2 ring-rose-500/50 z-20 shadow-lg'
+                          : isMuted
+                          ? 'border-slate-750 bg-slate-900/60 text-slate-500 opacity-60 border-dashed z-0'
+                          : isIntentional
+                          ? 'border-purple-500 bg-purple-950/80 text-purple-200 ring-1 ring-purple-500/40 z-20'
+                          : maxSeverity === 'severe'
+                          ? 'border-rose-500 bg-rose-950/85 text-rose-200 ring-2 ring-rose-500/60 z-20 shadow-lg'
+                          : maxSeverity === 'moderate'
+                          ? 'border-orange-500 bg-orange-950/80 text-orange-200 ring-1 ring-orange-500/40 z-20 shadow-md'
+                          : maxSeverity === 'minor'
+                          ? 'border-amber-500 bg-amber-950/70 text-amber-200 ring-1 ring-amber-500/30 z-20'
                           : isSelected
                           ? 'border-[#099767] bg-[#099767]/25 text-emerald-200 ring-2 ring-[#099767]/60 z-20 shadow-lg'
                           : isCurrentPlaying
@@ -976,7 +1547,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                       }}
                     >
                       {/* Collision Warning Stripe Overlay */}
-                      {collisionInfo && (
+                      {maxSeverity === 'severe' && !isMuted && (
                         <div
                           className="absolute inset-0 pointer-events-none opacity-25"
                           style={{
@@ -988,24 +1559,46 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
                       {/* Header with Line #, Offset Badge & Voice Name */}
                       <div className="flex items-center justify-between text-[9px] font-mono leading-none z-10">
-                        <span className="font-bold">
+                        <span className="font-bold flex items-center gap-1">
+                          {isMuted && <VolumeX className="w-2.5 h-2.5 text-slate-400" />}
                           #{idx + 1} {sub.voice}
                         </span>
-                        {offset !== 0 ? (
-                          <span
-                            className={`px-1 rounded text-[8px] font-bold ${
-                              offset > 0
-                                ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/40'
-                                : 'bg-purple-500/30 text-purple-200 border border-purple-500/40'
-                            }`}
-                          >
-                            {offset > 0 ? `+${offset}` : offset}s
-                          </span>
-                        ) : (
-                          <span className="text-[8px] opacity-70">
-                            {effectiveDuration.toFixed(1)}s
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1">
+                          {((sub.leadingSilenceRemovedSec || 0) > 0 || (sub.trailingSilenceRemovedSec || 0) > 0) && (
+                            <span
+                              className="px-1 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              title={`سکوت زائد پیرایش شد: -${((sub.leadingSilenceRemovedSec || 0) + (sub.trailingSilenceRemovedSec || 0)).toFixed(2)} ثانیه`}
+                            >
+                              ✂
+                            </span>
+                          )}
+                          {sub.shiftDirection && sub.shiftDirection !== 'none' && offset !== 0 ? (
+                            <span
+                              className={`px-1 rounded text-[8px] font-bold ${
+                                sub.shiftDirection === 'earlier'
+                                  ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-500/40'
+                                  : 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/40'
+                              }`}
+                              title={`شیفت زمانی (${sub.shiftReason || 'timing_optimization'}): ${offset > 0 ? `+${offset}` : offset}s | شروع اصلی: ${sub.originalStart ?? sub.start}s`}
+                            >
+                              {sub.shiftDirection === 'earlier' ? '←' : '→'} {offset > 0 ? `+${offset}` : offset}s
+                            </span>
+                          ) : offset !== 0 ? (
+                            <span
+                              className={`px-1 rounded text-[8px] font-bold ${
+                                offset > 0
+                                  ? 'bg-cyan-500/30 text-cyan-200 border border-cyan-500/40'
+                                  : 'bg-purple-500/30 text-purple-200 border border-purple-500/40'
+                              }`}
+                            >
+                              {offset > 0 ? `+${offset}` : offset}s
+                            </span>
+                          ) : (
+                            <span className="text-[8px] opacity-70">
+                              {effectiveDuration.toFixed(1)}s
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Line dialogue text */}
@@ -1013,11 +1606,25 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                         {sub.farsiText || sub.originalText}
                       </div>
 
-                      {/* Collision Badge Alert */}
-                      {collisionInfo && (
-                        <div className="text-[8px] font-bold text-rose-300 flex items-center gap-1 mt-0.5 z-10 truncate">
+                      {/* Collision / Status Badge Alert */}
+                      {subOverlaps.length > 0 && !isMuted && (
+                        <div
+                          className={`text-[8px] font-bold flex items-center gap-1 mt-0.5 z-10 truncate ${
+                            isIntentional
+                              ? 'text-purple-300'
+                              : maxSeverity === 'severe'
+                              ? 'text-rose-300'
+                              : maxSeverity === 'moderate'
+                              ? 'text-orange-300'
+                              : 'text-amber-300'
+                          }`}
+                        >
                           <AlertTriangle className="w-2.5 h-2.5 shrink-0" />
-                          <span>تداخل {collisionInfo.overlapSec} ثانیه</span>
+                          <span>
+                            {isIntentional
+                              ? `هم‌پوشانی تعمدی با #${partnerSub?.id || '?'}`
+                              : `تداخل ${primaryConflict?.overlapDurationSec}s با #${partnerSub?.id || '?'}`}
+                          </span>
                         </div>
                       )}
                     </div>
@@ -1061,9 +1668,9 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
               </div>
             </div>
 
-            {/* Solo Preview Button for Selected Line */}
-            <div className="flex items-center gap-2">
-              {selectedSub.audioBase64 ? (
+            {/* Solo Preview, Mute Toggle & Intentional Controls */}
+            <div className="flex flex-wrap items-center gap-2">
+              {selectedSub.audioBase64 || selectedSub.originalAudioBase64 ? (
                 <button
                   type="button"
                   onClick={() => handlePlaySoloVoice(selectedSub)}
@@ -1089,6 +1696,45 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                 <span className="text-[11px] text-slate-500">صوت این خط هنوز ساخته نشده است</span>
               )}
 
+              {/* Mute Segment Toggle */}
+              <button
+                type="button"
+                onClick={() => handleToggleMuteSegment(selectedSub.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                  selectedSub.isMuted
+                    ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                    : 'bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-750'
+                }`}
+                title={selectedSub.isMuted ? 'فعال کردن پخش این دیالوگ' : 'بی‌صدا کردن موقت این دیالوگ'}
+              >
+                {selectedSub.isMuted ? (
+                  <>
+                    <VolumeX className="w-3.5 h-3.5 text-amber-400" />
+                    <span>بی‌صدا (Muted)</span>
+                  </>
+                ) : (
+                  <>
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>بی‌صدا کردن</span>
+                  </>
+                )}
+              </button>
+
+              {/* Intentional Overlap Toggle */}
+              <button
+                type="button"
+                onClick={() => handleToggleIntentionalOverlap(selectedSub.id)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition ${
+                  selectedSub.isIntentionalOverlap
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/40'
+                    : 'bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-750'
+                }`}
+                title="علامت‌گذاری به عنوان هم‌پوشانی عمدی که نباید فشرده یا تغییر داده شود"
+              >
+                <Layers className="w-3.5 h-3.5 text-purple-400" />
+                <span>{selectedSub.isIntentionalOverlap ? 'هم‌پوشانی عمدی' : 'تعریف تداخل عمدی'}</span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setSelectedSubId(null)}
@@ -1099,66 +1745,174 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             </div>
           </div>
 
-          {/* Precision Offset Slider & Quick Nudges */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-            {/* Slider */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-slate-300 whitespace-nowrap">جابجایی زمانی (Offset):</span>
-              <input
-                type="range"
-                min="-5"
-                max="5"
-                step="0.05"
-                value={selectedSub.audioOffset || 0}
-                onChange={(e) =>
-                  onUpdateSubtitle?.(selectedSub.id, {
-                    audioOffset: parseFloat(e.target.value),
-                  })
-                }
-                className="w-full accent-[#099767] cursor-pointer"
-              />
-              <span className="font-mono text-xs w-16 text-center py-1 px-2 rounded-lg bg-slate-900 border border-slate-800 text-[#34d399] font-bold">
-                {(selectedSub.audioOffset || 0) > 0 ? `+${(selectedSub.audioOffset || 0).toFixed(2)}` : (selectedSub.audioOffset || 0).toFixed(2)}s
-              </span>
+          {/* Active Overlap Conflict Card for this selected segment */}
+          {(() => {
+            const selectedOverlaps = overlapSummary.segmentOverlapMap[selectedSub.id] || [];
+            if (selectedOverlaps.length === 0) return null;
+
+            return (
+              <div className="mb-3 p-3 rounded-xl bg-amber-950/30 border border-amber-500/40 text-amber-200 text-xs space-y-2">
+                <div className="font-bold text-amber-300 flex items-center justify-between">
+                  <span className="flex items-center gap-1.5">
+                    <AlertTriangle className="w-4 h-4 text-amber-400" />
+                    <span>تداخل‌های شناسایی‌شده برای این دیالوگ ({selectedOverlaps.length} مورد):</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setIsBulkSpeedModalOpen(true)}
+                    className="text-[11px] px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30 transition"
+                  >
+                    تنظیم سرعت در پنل دسته‌جمعی
+                  </button>
+                </div>
+
+                <div className="space-y-1.5">
+                  {selectedOverlaps.map((ov) => {
+                    const partnerId = ov.firstSubId === selectedSub.id ? ov.secondSubId : ov.firstSubId;
+                    const partner = subtitles.find((s) => s.id === partnerId);
+                    const pairKey = `${ov.firstSubId}_${ov.secondSubId}`;
+                    const isPairPlaying = playingConflictPair === pairKey;
+
+                    return (
+                      <div
+                        key={ov.id}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-2 rounded-lg bg-slate-900/80 border border-slate-800"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                            ov.severity === 'severe'
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40'
+                              : ov.severity === 'moderate'
+                              ? 'bg-orange-500/20 text-orange-300 border border-orange-500/40'
+                              : 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                          }`}>
+                            {ov.severity === 'severe' ? 'تداخل شدید' : ov.severity === 'moderate' ? 'تداخل متوسط' : 'تداخل جزیی'} ({ov.overlapDurationSec}s)
+                          </span>
+                          <span className="text-slate-300">
+                            تداخل با دیالوگ <strong>#{partnerId}</strong>: <span className="text-slate-400 truncate max-w-xs">{partner?.farsiText || partner?.originalText}</span>
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => handlePlayConflictPair(ov.firstSubId, ov.secondSubId)}
+                            className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                              isPairPlaying
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-[#099767]/20 text-[#34d399] border border-[#099767]/40 hover:bg-[#099767]/30'
+                            }`}
+                            title="پخش هم‌زمان دو دیالوگ با هم برای شنیدن دقیق تداخل"
+                          >
+                            {isPairPlaying ? (
+                              <>
+                                <Pause className="w-3 h-3 fill-current" />
+                                <span>توقف پخش جفت</span>
+                              </>
+                            ) : (
+                              <>
+                                <Play className="w-3 h-3 fill-current" />
+                                <span>پخش هم‌زمان دو دیالوگ</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Precision Offset Slider & Time-Stretch Sync Controls */}
+          <div className="space-y-3">
+            {/* Row 1: Time-Stretch (Speed) Control without Pitch Alteration */}
+            <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+              <div className="flex items-center gap-2">
+                <FastForward className="w-4 h-4 text-[#34d399]" />
+                <span className="text-xs text-slate-200 font-semibold">سرعت زمانی دیالوگ (Time-Stretch با حفظ گام صدا):</span>
+                <span className="text-xs font-mono text-[#34d399] font-bold">
+                  {(selectedSub.timeStretchRatio || selectedSub.playbackRate || 1.0).toFixed(2)}x
+                </span>
+                {selectedSub.effectiveDuration && (
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    (طول نهایی: {(selectedSub.effectiveDuration / (selectedSub.timeStretchRatio || 1.0)).toFixed(2)}s از {(selectedSub.end - selectedSub.start).toFixed(2)}s)
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5 text-xs">
+                {[1.0, 1.08, 1.15, 1.22].map((sp) => (
+                  <button
+                    key={sp}
+                    type="button"
+                    onClick={() => {
+                      onUpdateSubtitle?.(selectedSub.id, {
+                        timeStretchRatio: sp,
+                        playbackRate: sp,
+                        syncStatus: sp === 1.0 ? 'ready' : 'synchronized',
+                      });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg border transition font-mono ${
+                      Math.abs((selectedSub.timeStretchRatio || 1.0) - sp) < 0.02
+                        ? 'bg-[#099767] text-white border-[#099767]'
+                        : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700'
+                    }`}
+                  >
+                    {sp.toFixed(2)}x
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Quick Nudge Buttons */}
-            <div className="flex flex-wrap items-center justify-start md:justify-end gap-1.5 text-xs">
-              <button
-                type="button"
-                onClick={() => handleNudgeOffset(selectedSub.id, -0.5)}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition font-mono"
-              >
-                -۰.۵ ثانیه
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNudgeOffset(selectedSub.id, -0.1)}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition font-mono"
-              >
-                -۰.۱ ثانیه
-              </button>
-              <button
-                type="button"
-                onClick={() => handleResetLineOffset(selectedSub.id)}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[#34d399] transition"
-              >
-                شروع همزمان (0.00s)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNudgeOffset(selectedSub.id, 0.1)}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition font-mono"
-              >
-                +۰.۱ ثانیه
-              </button>
-              <button
-                type="button"
-                onClick={() => handleNudgeOffset(selectedSub.id, 0.5)}
-                className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition font-mono"
-              >
-                +۰.۵ ثانیه
-              </button>
+            {/* Row 2: Manual Timeline Offset Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
+              {/* Slider */}
+              <div className="flex items-center gap-3">
+                <span className="text-xs text-slate-300 whitespace-nowrap">جابجایی زمانی دستی:</span>
+                <input
+                  type="range"
+                  min="-5"
+                  max="5"
+                  step="0.05"
+                  value={selectedSub.audioOffset || 0}
+                  onChange={(e) =>
+                    onUpdateSubtitle?.(selectedSub.id, {
+                      audioOffset: parseFloat(e.target.value),
+                    })
+                  }
+                  className="w-full accent-[#099767] cursor-pointer"
+                />
+                <span className="font-mono text-xs w-16 text-center py-1 px-2 rounded-lg bg-slate-900 border border-slate-800 text-[#34d399] font-bold">
+                  {(selectedSub.audioOffset || 0) > 0 ? `+${(selectedSub.audioOffset || 0).toFixed(2)}` : (selectedSub.audioOffset || 0).toFixed(2)}s
+                </span>
+              </div>
+
+              {/* Quick Nudge Buttons */}
+              <div className="flex flex-wrap items-center justify-start md:justify-end gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleNudgeOffset(selectedSub.id, -0.1)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition font-mono"
+                >
+                  -۰.۱ ثانیه
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleResetLineOffset(selectedSub.id)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[#34d399] transition font-bold"
+                >
+                  سینک صفر (0.00s)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNudgeOffset(selectedSub.id, 0.1)}
+                  className="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 transition font-mono"
+                >
+                  +۰.۱ ثانیه
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1290,6 +2044,33 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
           )}
         </div>
       </div>
+
+      {/* Bulk Speech Speed Control Modal */}
+      <BulkSpeedModal
+        isOpen={isBulkSpeedModalOpen}
+        onClose={() => setIsBulkSpeedModalOpen(false)}
+        subtitles={subtitles}
+        selectedSubtitleIds={selectedSubId ? [selectedSubId] : []}
+        overlapSummary={overlapSummary}
+        onUpdateAllSubtitles={(updated) => onUpdateAllSubtitles?.(updated)}
+        historySnapshot={bulkSpeedHistorySnapshot}
+        onSaveHistorySnapshot={(snap) => setBulkSpeedHistorySnapshot(snap)}
+      />
+
+      {/* One-Click Intelligent Audio Timeline Auto-Fix Dashboard Modal */}
+      <AutoFixDashboardModal
+        isOpen={isAutoFixModalOpen}
+        onClose={() => setIsAutoFixModalOpen(false)}
+        result={autoFixResult}
+        onUndo={handleUndoAutoFix}
+        onSelectSubtitle={(subId) => {
+          setSelectedSubId(subId);
+          const target = subtitles.find((s) => s.id === subId);
+          if (target) {
+            handleSeek(target.start);
+          }
+        }}
+      />
     </div>
   );
 };

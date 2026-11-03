@@ -26,7 +26,7 @@ def transcribe(audio_path, model_size="base"):
         if max_val > 0:
             data = data / max_val
 
-        # device: cpu or cuda
+        # Device selection: GPU CUDA (float16) or CPU (int8)
         device = "cpu"
         compute_type = "int8"
         try:
@@ -37,26 +37,55 @@ def transcribe(audio_path, model_size="base"):
         except Exception:
             pass
 
-        # Load Whisper model (base is fast and downloaded in cache)
+        # Load Whisper model with word-level forced alignment
         model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        
+        # Transcribe with physical word-level timestamps & VAD speech segmentation
         segments, info = model.transcribe(
             data,
             language="en",
             beam_size=5,
+            word_timestamps=True,
             vad_filter=True,
-            vad_parameters=dict(min_silence_duration_ms=500)
+            vad_parameters=dict(min_silence_duration_ms=400)
         )
 
         results = []
         idx = 1
+        speaker_idx = 1
+        last_seg_end = 0.0
+
         for segment in segments:
+            # Detect speaker change heuristics from long pauses (> 1.2s)
+            if idx > 1 and (segment.start - last_seg_end) > 1.2:
+                speaker_idx = (speaker_idx % 2) + 1
+
+            word_list = []
+            if hasattr(segment, 'words') and segment.words:
+                for w in segment.words:
+                    word_list.append({
+                        "word": w.word.strip(),
+                        "start": round(w.start, 3),
+                        "end": round(w.end, 3),
+                        "score": round(w.probability, 3) if hasattr(w, 'probability') else 1.0
+                    })
+
+            # Exact speech start and end timestamps (never artificially bloated to 1s)
+            seg_start = round(segment.start, 2)
+            seg_end = round(segment.end, 2)
+            seg_dur = round(max(0.1, seg_end - seg_start), 2)
+
             results.append({
                 "id": idx,
-                "start": round(segment.start, 2),
-                "end": round(segment.end, 2),
-                "text": segment.text.strip()
+                "speakerId": f"speaker_{speaker_idx}",
+                "start": seg_start,
+                "end": seg_end,
+                "duration": seg_dur,
+                "text": segment.text.strip(),
+                "words": word_list
             })
             idx += 1
+            last_seg_end = seg_end
 
         print(json.dumps({
             "success": True,
@@ -64,6 +93,7 @@ def transcribe(audio_path, model_size="base"):
             "language": info.language,
             "duration": round(info.duration, 2)
         }, ensure_ascii=False))
+
     except Exception as e:
         print(json.dumps({"success": False, "error": str(e)}, ensure_ascii=False))
 
