@@ -31,7 +31,7 @@ export default function App() {
   });
   const [translationModel, setTranslationModel] = useState<string>(() => {
     const saved = localStorage.getItem('persian_dub_translation_model');
-    if (!saved || saved === 'OpenAI: GPT-6 Luna' || saved === 'Anthropic: Claude Haiku 5.5' || saved.toLowerCase().includes('gpt-4')) {
+    if (!saved || saved === 'Anthropic: Claude Haiku 5.5' || saved === 'anthropic/claude-sonnet-5:batch') {
       localStorage.setItem('persian_dub_translation_model', 'openai/gpt-6-luna');
       return 'openai/gpt-6-luna';
     }

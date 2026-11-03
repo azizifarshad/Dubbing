@@ -440,3 +440,89 @@ export async function autoResolveAllOverlaps(
         : 'تمام دیالوگ‌ها همگام هستند و هیچ تداخلی وجود ندارد.',
   };
 }
+
+/**
+ * Intelligently compacts empty silence gaps between consecutive dialogue clips
+ * and shifts cramped segments earlier into available silence to open up room
+ * for subsequent dialogues that would otherwise collide (Magnetic Gap Compaction).
+ */
+export function compactEmptyGapsAndOpenSpace(
+  subtitles: SubtitleItem[],
+  minPauseSec: number = 0.12,
+  maxEarlyShiftSec: number = 2.0
+): {
+  updatedSubtitles: SubtitleItem[];
+  compactedCount: number;
+  totalCompactedSec: number;
+  messageFa: string;
+} {
+  if (!subtitles || subtitles.length === 0) {
+    return { updatedSubtitles: [], compactedCount: 0, totalCompactedSec: 0, messageFa: 'هیچ دیالوگی یافت نشد.' };
+  }
+
+  const sorted = [...subtitles].sort((a, b) => a.start - b.start);
+  let compactedCount = 0;
+  let totalCompactedSec = 0;
+
+  const result: SubtitleItem[] = [];
+
+  for (let i = 0; i < sorted.length; i++) {
+    const cur = { ...sorted[i] };
+    const curOffset = typeof cur.audioOffset === 'number' ? cur.audioOffset : 0;
+    const curDur = typeof cur.audioDuration === 'number' ? cur.audioDuration : (cur.end - cur.start);
+    const curVoiceStart = Math.max(0, cur.start + curOffset);
+
+    if (i === 0) {
+      result.push(cur);
+      continue;
+    }
+
+    const prev = result[i - 1];
+    const prevOffset = typeof prev.audioOffset === 'number' ? prev.audioOffset : 0;
+    const prevDur = typeof prev.audioDuration === 'number' ? prev.audioDuration : (prev.end - prev.start);
+    const prevVoiceEnd = Math.max(0, prev.start + prevOffset) + prevDur;
+
+    // Check gap between previous voice end and current voice start
+    const gapSec = curVoiceStart - prevVoiceEnd;
+
+    // Check if downstream segments have tension or if current segment collides with next
+    let hasDownstreamTension = false;
+    for (let k = i; k < sorted.length - 1; k++) {
+      const s1 = sorted[k];
+      const s2 = sorted[k + 1];
+      const s1End = Math.max(0, s1.start + (s1.audioOffset || 0)) + (s1.audioDuration || (s1.end - s1.start));
+      const s2Start = Math.max(0, s2.start + (s2.audioOffset || 0));
+      if (s1End > s2Start + 0.04) {
+        hasDownstreamTension = true;
+        break;
+      }
+    }
+
+    // If there is an unnecessarily large empty silence (> 0.25s) before current voice and downstream needs space:
+    if (hasDownstreamTension && gapSec > minPauseSec + 0.15) {
+      const allowableShift = Math.min(maxEarlyShiftSec, gapSec - minPauseSec);
+      if (allowableShift > 0.04) {
+        const newOffset = Number((curOffset - allowableShift).toFixed(3));
+        cur.audioOffset = newOffset;
+        compactedCount++;
+        totalCompactedSec += allowableShift;
+      }
+    }
+
+    result.push(cur);
+  }
+
+  // Preserve original ordering of subtitles array
+  const resultMap = new Map(result.map((s) => [s.id, s]));
+  const finalSubtitles = subtitles.map((s) => resultMap.get(s.id) || s);
+
+  return {
+    updatedSubtitles: finalSubtitles,
+    compactedCount,
+    totalCompactedSec: Number(totalCompactedSec.toFixed(3)),
+    messageFa:
+      compactedCount > 0
+        ? `تعداد ${compactedCount} دیالوگ به جلو کشیده شدند و ${totalCompactedSec.toFixed(2)} ثانیه فضای خالی برای باز شدن تداخل دیالوگ‌های بعدی آزاد شد.`
+        : 'فواصل زمانی بین صداها بهینه هستند و نیاز به جابجایی وجود ندارد.',
+  };
+}

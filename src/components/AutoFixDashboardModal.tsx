@@ -384,10 +384,11 @@ export const AutoFixDashboardModal: React.FC<AutoFixDashboardModalProps> = ({
 
                         {((res.leadingSilenceTrimmedSec || 0) > 0 || (res.trailingSilenceTrimmedSec || 0) > 0) && (
                           <span
-                            className="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono text-[10px] border border-emerald-500/20"
+                            className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-mono text-[10px] border border-emerald-500/20"
                             title="سکوت زائد حذف شده"
                           >
-                            ✂ -{((res.leadingSilenceTrimmedSec || 0) + (res.trailingSilenceTrimmedSec || 0)).toFixed(2)}s
+                            <Scissors className="w-2.5 h-2.5" />
+                            <span>-{((res.leadingSilenceTrimmedSec || 0) + (res.trailingSilenceTrimmedSec || 0)).toFixed(2)}s</span>
                           </span>
                         )}
 

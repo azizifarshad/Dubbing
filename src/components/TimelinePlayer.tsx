@@ -43,6 +43,8 @@ import {
   Eye,
   Settings2,
   Scissors,
+  Bot,
+  Minimize2,
 } from 'lucide-react';
 import { formatPlayerTime } from '../utils/srtParser';
 import {
@@ -58,12 +60,14 @@ import {
   profileAudioSilence,
   stretchAudioViaRubberBandServer,
   timeStretchAudioBufferWSOLA,
+  trimZeroSilenceAudioBuffer,
 } from '../utils/syncEngine';
-import { detectAudioOverlaps, autoResolveAllOverlaps } from '../utils/overlapEngine';
+import { detectAudioOverlaps, autoResolveAllOverlaps, compactEmptyGapsAndOpenSpace } from '../utils/overlapEngine';
 import { undoBulkSpeedChanges } from '../utils/bulkSpeedController';
 import { autoFixEntireTimeline } from '../utils/autoFixEngine';
 import { BulkSpeedModal } from './BulkSpeedModal';
 import { AutoFixDashboardModal } from './AutoFixDashboardModal';
+import { AiSyncModal } from './AiSyncModal';
 
 interface TimelinePlayerProps {
   subtitles: SubtitleItem[];
@@ -152,6 +156,16 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
   const [isAutoFixing, setIsAutoFixing] = useState<boolean>(false);
   const [autoFixProgress, setAutoFixProgress] = useState<{ pct: number; msg: string }>({ pct: 0, msg: '' });
   const autoFixAbortControllerRef = useRef<AbortController | null>(null);
+
+  // AI Cloud Timeline Synchronization State (GPT-6 Luna / Hormouz)
+  const [isAiSyncing, setIsAiSyncing] = useState<boolean>(false);
+  const [aiSyncProgressMsg, setAiSyncProgressMsg] = useState<string>('');
+  const [aiSyncResult, setAiSyncResult] = useState<any>(null);
+  const [isAiSyncModalOpen, setIsAiSyncModalOpen] = useState<boolean>(false);
+
+  // Audio Re-synthesis state for shortened/modified lines
+  const [isRegeneratingAudio, setIsRegeneratingAudio] = useState<boolean>(false);
+  const [regenerateProgressMsg, setRegenerateProgressMsg] = useState<string>('');
 
   // Flexible Timeline Placement & Zero-Silence Auto-Fix state
   const [isPlacementConfigOpen, setIsPlacementConfigOpen] = useState<boolean>(false);
@@ -747,6 +761,236 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
     }
   };
 
+  // AI Cloud Timeline Synchronization using Claude Sonnet 5 (batch)
+  const handleAiTimelineSync = async () => {
+    if (!onUpdateAllSubtitles || subtitles.length === 0 || isAiSyncing) return;
+
+    setIsAiSyncing(true);
+    setAiSyncProgressMsg('در حال ارسال ساختار زمانی دیالوگ‌ها به GPT-6 Luna...');
+    setSyncSuccessMsg(null);
+
+    try {
+      const activeModel = localStorage.getItem('persian_dub_translation_model') || 'openai/gpt-6-luna';
+      const storedKey = localStorage.getItem('persian_dub_api_key') || localStorage.getItem('persian_dub_gemini_key') || '';
+      const storedBaseUrl = localStorage.getItem('persian_dub_base_url') || 'https://api.hormouz.net/v1';
+
+      // 1. Send timeline to server endpoint
+      const response = await fetch('/api/ai-sync-timeline', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': storedKey,
+          'x-translation-model': activeModel,
+        },
+        body: JSON.stringify({
+          apiKey: storedKey,
+          baseUrl: storedBaseUrl,
+          model: activeModel,
+          maxAllowedSpeed: 1.25,
+          minPauseSec: 0.12,
+          subtitles: subtitles.map((s) => ({
+            id: s.id,
+            start: s.start,
+            end: s.end,
+            originalText: s.originalText || '',
+            farsiText: s.farsiText || '',
+            audioDuration: s.audioDuration,
+            audioOffset: s.audioOffset || 0,
+            leadingSilenceSec: s.leadingSilenceSec,
+            trailingSilenceSec: s.trailingSilenceSec,
+            effectiveDuration: s.effectiveDuration,
+          })),
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok || !data.success) {
+        throw new Error(data.error || 'خطا در هماهنگ‌سازی با سرور هوش مصنوعی');
+      }
+
+      setAiSyncProgressMsg('پاسخ دریافت شد؛ در حال اعمال کشش صوتی WSOLA و بازنویسی زیرنویس‌ها...');
+
+      // 2. Capture clean Undo history snapshot
+      const undoSnapshot: BulkSpeedHistorySnapshot = {
+        timestamp: Date.now(),
+        descriptionFa: `سینک هوشمند تایم‌لاین با مدل ${data.modelUsed || activeModel}`,
+        items: subtitles.map((s) => ({
+          id: s.id,
+          audioBase64: s.audioBase64,
+          originalAudioBase64: s.originalAudioBase64,
+          processedAudioBase64: s.processedAudioBase64,
+          appliedSpeed: s.appliedSpeed,
+          audioDuration: s.audioDuration,
+          effectiveDuration: s.effectiveDuration,
+          timeStretchRatio: s.timeStretchRatio,
+          playbackRate: s.playbackRate,
+          isMuted: s.isMuted,
+          isIntentionalOverlap: s.isIntentionalOverlap,
+        })),
+      };
+      setBulkSpeedHistorySnapshot(undoSnapshot);
+
+      // 3. Apply adjustments to subtitles and audio tracks
+      const ctx = getAudioContext();
+      const adjMap = new Map<number, any>((data.adjustments || []).map((a: any) => [a.id, a]));
+
+      const updatedSubtitles = await Promise.all(
+        subtitles.map(async (sub) => {
+          const adj = adjMap.get(sub.id);
+          if (!adj) return sub;
+
+          const nextSub: SubtitleItem = { ...sub };
+
+          // A. Update text if shortened/adapted by AI
+          if (adj.isTextModified && adj.suggestedFarsiText && adj.suggestedFarsiText.trim()) {
+            nextSub.farsiText = adj.suggestedFarsiText.trim();
+          }
+
+          // B. Update micro-shift offset
+          if (typeof adj.recommendedOffsetSec === 'number') {
+            nextSub.audioOffset = Number(adj.recommendedOffsetSec.toFixed(3));
+          }
+
+          // C. Pitch-preserved WSOLA stretch if speed recommended > 1.01
+          const speed = typeof adj.recommendedSpeed === 'number' ? adj.recommendedSpeed : 1.0;
+          if (speed > 1.01 && (sub.audioBase64 || sub.originalAudioBase64) && ctx) {
+            try {
+              const pristineAudio = sub.originalAudioBase64 || sub.audioBase64;
+              const buffer = await decodeBase64ToAudioBuffer(pristineAudio!);
+              const stretchedBuffer = await timeStretchAudioBufferWSOLA(buffer, speed, ctx);
+              const wavBlob = audioBufferToWav(stretchedBuffer);
+              const stretchedBase64 = await blobToBase64(wavBlob);
+
+              nextSub.originalAudioBase64 = sub.originalAudioBase64 || sub.audioBase64;
+              nextSub.processedAudioBase64 = stretchedBase64;
+              nextSub.audioBase64 = stretchedBase64;
+              nextSub.appliedSpeed = speed;
+              nextSub.timeStretchRatio = speed;
+              nextSub.audioDuration = Number((buffer.duration / speed).toFixed(3));
+              nextSub.effectiveDuration = nextSub.audioDuration;
+            } catch (stretchErr) {
+              console.warn(`[WSOLA Stretch Warning sub #${sub.id}]:`, stretchErr);
+            }
+          }
+
+          return nextSub;
+        })
+      );
+
+      onUpdateAllSubtitles(updatedSubtitles);
+      setAiSyncResult(data);
+      setIsAiSyncModalOpen(true);
+      setSyncSuccessMsg(data.summary?.messageFa || `سینک هوشمند توسط ${data.modelUsed} بدون تداخل اعمال شد.`);
+    } catch (err: any) {
+      console.error('[handleAiTimelineSync Error]:', err);
+      alert('خطا در سینک ابری تایم‌لاین: ' + (err.message || 'مشکلی رخ داد'));
+    } finally {
+      setIsAiSyncing(false);
+      setAiSyncProgressMsg('');
+    }
+  };
+
+  // Re-synthesize audio for lines modified / shortened by AI during sync
+  const handleRegenerateModifiedAudios = async (modifiedIds: number[]) => {
+    if (!onUpdateAllSubtitles || modifiedIds.length === 0 || isRegeneratingAudio) return;
+
+    setIsRegeneratingAudio(true);
+    setRegenerateProgressMsg('در حال آماده‌سازی تولید مجدد صدای دیالوگ‌های بازنویسی‌شده...');
+
+    try {
+      const storedKey = localStorage.getItem('persian_dub_api_key') || localStorage.getItem('persian_dub_gemini_key') || '';
+      const storedBaseUrl = localStorage.getItem('persian_dub_base_url') || 'https://api.hormouz.net/v1';
+      const storedTtsModel = localStorage.getItem('persian_dub_tts_model') || 'google/gemini-3.8-flash-lite-tts';
+      const ctx = getAudioContext();
+
+      const idSet = new Set(modifiedIds);
+      const updatedList = [...subtitles];
+      let successCount = 0;
+
+      for (let idx = 0; idx < updatedList.length; idx++) {
+        const sub = updatedList[idx];
+        if (!idSet.has(sub.id)) continue;
+
+        setRegenerateProgressMsg(`در حال تولید مجدد صدای دیالوگ #${sub.id} (${successCount + 1}/${modifiedIds.length})...`);
+
+        try {
+          const res = await fetch('/api/tts', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(storedKey ? { 'x-api-key': storedKey, 'x-gemini-api-key': storedKey } : {}),
+              ...(storedBaseUrl ? { 'x-base-url': storedBaseUrl } : {}),
+              ...(storedTtsModel ? { 'x-tts-model': storedTtsModel } : {}),
+            },
+            body: JSON.stringify({
+              text: (sub.farsiText || '').trim(),
+              voice: sub.voice || 'Iapetus',
+              apiKey: storedKey,
+              baseUrl: storedBaseUrl,
+              ttsModel: storedTtsModel,
+            }),
+          });
+
+          const data = await res.json();
+          if (res.ok && data.success && data.audioBase64) {
+            let finalAudio = data.audioBase64;
+            let duration = 0;
+
+            if (ctx) {
+              try {
+                const rawBuf = await decodeBase64ToAudioBuffer(data.audioBase64);
+                const trimRes = trimZeroSilenceAudioBuffer(rawBuf, ctx, { paddingMs: 25 });
+                if (trimRes.isTrimmed) {
+                  const wavBlob = audioBufferToWav(trimRes.trimmedBuffer);
+                  finalAudio = await blobToBase64(wavBlob);
+                  duration = trimRes.effectiveDuration;
+                } else {
+                  duration = rawBuf.duration;
+                }
+              } catch (_) {}
+            }
+
+            updatedList[idx] = {
+              ...sub,
+              originalAudioBase64: finalAudio,
+              processedAudioBase64: finalAudio,
+              audioBase64: finalAudio,
+              audioDuration: Number(duration.toFixed(3)),
+              effectiveDuration: Number(duration.toFixed(3)),
+              appliedSpeed: 1.0,
+              timeStretchRatio: 1.0,
+              status: 'ready',
+            };
+            successCount++;
+          }
+        } catch (lineErr) {
+          console.warn(`[Regenerate Audio Line #${sub.id} Error]:`, lineErr);
+        }
+      }
+
+      onUpdateAllSubtitles(updatedList);
+      setSyncSuccessMsg(`تعداد ${successCount} فایل صوتی جدید برای دیالوگ‌های بازنویسی‌شده با موفقیت تولید و جایگزین شد.`);
+    } catch (err: any) {
+      console.error('[handleRegenerateModifiedAudios Error]:', err);
+      alert('خطا در تولید مجدد صداها: ' + (err.message || 'مشکلی رخ داد'));
+    } finally {
+      setIsRegeneratingAudio(false);
+      setRegenerateProgressMsg('');
+    }
+  };
+
+  // Magnetic Gap Compaction: Compact empty silences to free space downstream
+  const handleCompactTimelineGaps = () => {
+    if (!onUpdateAllSubtitles || subtitles.length === 0) return;
+    const res = compactEmptyGapsAndOpenSpace(subtitles, 0.12, 2.0);
+    if (res.compactedCount > 0) {
+      onUpdateAllSubtitles(res.updatedSubtitles);
+      setSyncSuccessMsg(res.messageFa);
+    } else {
+      setSyncSuccessMsg(res.messageFa);
+    }
+  };
+
   // Intelligent Audio Synchronization Resolver: Uses Pitch-Preserving Time-Stretch
   // Resolves ALL dialogue overlaps intelligently with a single click without moving dialogue start timestamps!
   const handleIntelligentOverlapSync = async () => {
@@ -878,12 +1122,56 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
 
         {/* Mix Output Status Badge & Quick Download */}
         <div className="flex flex-wrap items-center gap-2.5">
+          {/* Primary GPT-6 Luna AI Sync Button */}
+          <button
+            type="button"
+            onClick={handleAiTimelineSync}
+            disabled={isAiSyncing || isAutoFixing || isRegeneratingAudio}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 via-[#10b981] to-[#099767] hover:from-emerald-400 hover:to-[#10b981] disabled:opacity-50 text-slate-950 text-xs font-black transition shadow-md shadow-emerald-950/40 cursor-pointer"
+            title="تحلیل جامع کل تایم‌لاین توسط GPT-6 Luna، حل ۱۰۰٪ تداخل‌ها، چسباندن فاصله‌ها و بازنویسی دیالوگ‌ها"
+          >
+            {isAiSyncing ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-slate-950" />
+                <span>{aiSyncProgressMsg || 'در حال سینک با GPT-6 Luna...'}</span>
+              </>
+            ) : (
+              <>
+                <Bot className="w-3.5 h-3.5 text-slate-950" />
+                <span>سینک هوشمند خط زمان (GPT-6 Luna)</span>
+              </>
+            )}
+          </button>
+
+          {aiSyncResult && (
+            <button
+              type="button"
+              onClick={() => setIsAiSyncModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition shadow-sm cursor-pointer"
+              title="مشاهده گزارش سینک هوشمند ابری GPT-6 Luna"
+            >
+              <Eye className="w-3.5 h-3.5 text-emerald-400" />
+              <span>گزارش GPT-6 Luna</span>
+            </button>
+          )}
+
+          {/* Magnetic Gap Compaction Button */}
+          <button
+            type="button"
+            onClick={handleCompactTimelineGaps}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-cyan-500/30 text-cyan-300 text-xs font-semibold transition shadow-sm cursor-pointer"
+            title="چسباندن فواصل خالی زائد و کشیدن صداها به جلو برای باز شدن فضای دیالوگ‌های پر ترافیک"
+          >
+            <Minimize2 className="w-3.5 h-3.5 text-cyan-400" />
+            <span>چسباندن فواصل خالی</span>
+          </button>
+
           {/* Primary Auto Fix All Audio Button */}
           <button
             type="button"
             onClick={handleAutoFixAll}
-            disabled={isAutoFixing}
-            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-[#10b981] to-[#099767] hover:from-emerald-300 hover:to-[#10b981] disabled:opacity-50 text-slate-950 text-xs font-black transition shadow-md shadow-emerald-950/40 cursor-pointer animate-pulse hover:animate-none"
+            disabled={isAutoFixing || isAiSyncing}
+            className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-emerald-400 via-[#10b981] to-[#099767] hover:from-emerald-300 hover:to-[#10b981] disabled:opacity-50 text-slate-950 text-xs font-black transition shadow-md shadow-emerald-950/40 cursor-pointer"
             title="بررسی جامع خط زمان، حذف سکوت‌ها، فشرده‌سازی کنترل‌شده WSOLA و برطرف‌سازی هوشمند تداخل‌ها با ۱ کلیک"
           >
             {isAutoFixing ? (
@@ -894,7 +1182,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             ) : (
               <>
                 <Sparkles className="w-3.5 h-3.5 text-slate-950" />
-                <span>⚡ بررسی و اصلاح هوشمند همه صداها</span>
+                <span>بررسی و اصلاح هوشمند همه صداها</span>
               </>
             )}
           </button>
@@ -1153,12 +1441,56 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 shrink-0">
+              {/* Primary Claude Sonnet 5 AI Sync Button */}
+              <button
+                type="button"
+                onClick={handleAiTimelineSync}
+                disabled={isAiSyncing || isAutoFixing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-purple-500 via-indigo-600 to-purple-600 hover:from-purple-400 hover:to-indigo-500 disabled:opacity-50 text-white font-extrabold transition text-xs shadow-lg shadow-purple-950/50 cursor-pointer animate-pulse hover:animate-none"
+                title="ارسال کل تایم‌لاین به مدل GPT-6 Luna برای حل قطعی تداخل‌ها، بازنویسی جملات طولانی و تضمین عدم همپوشانی"
+              >
+                {isAiSyncing ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                    <span>{aiSyncProgressMsg || 'در حال سینک با GPT-6 Luna...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Bot className="w-4 h-4 text-slate-950" />
+                    <span>سینک هوشمند با GPT-6 Luna</span>
+                  </>
+                )}
+              </button>
+
+              {aiSyncResult && (
+                <button
+                  type="button"
+                  onClick={() => setIsAiSyncModalOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 font-semibold transition text-xs shadow-sm cursor-pointer"
+                  title="مشاهده گزارش سینک هوشمند ابری GPT-6 Luna"
+                >
+                  <Eye className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>گزارش GPT-6 Luna</span>
+                </button>
+              )}
+
+              {/* Magnetic Gap Compaction Button */}
+              <button
+                type="button"
+                onClick={handleCompactTimelineGaps}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-cyan-500/30 font-semibold transition text-xs shadow-sm cursor-pointer"
+                title="چسباندن فواصل خالی زائد و کشیدن صداها به جلو برای باز شدن فضای دیالوگ‌های پر ترافیک"
+              >
+                <Minimize2 className="w-3.5 h-3.5 text-cyan-400" />
+                <span>چسباندن فواصل خالی</span>
+              </button>
+
               {/* Primary 1-Click Intelligent Timeline Auto Fixer */}
               <button
                 type="button"
                 onClick={handleAutoFixAll}
-                disabled={isAutoFixing}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 via-[#10b981] to-[#099767] hover:from-emerald-300 hover:to-[#10b981] disabled:opacity-50 text-slate-950 font-extrabold transition text-xs shadow-lg shadow-emerald-950/50 cursor-pointer animate-pulse hover:animate-none"
+                disabled={isAutoFixing || isAiSyncing}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-400 via-[#10b981] to-[#099767] hover:from-emerald-300 hover:to-[#10b981] disabled:opacity-50 text-slate-950 font-extrabold transition text-xs shadow-lg shadow-emerald-950/50 cursor-pointer"
                 title="بررسی کامل تایم‌لاین، برش سکوت‌های زائد، تنظیم هوشمند و رفع تمام تداخل‌ها با ۱ کلیک"
               >
                 {isAutoFixing ? (
@@ -1169,7 +1501,7 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 text-slate-950" />
-                    <span>⚡ اصلاح هوشمند همه صداها (Auto Fix All)</span>
+                    <span>اصلاح هوشمند همه صداها (Auto Fix All)</span>
                   </>
                 )}
               </button>
@@ -1374,39 +1706,95 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
             </span>
           </div>
 
-          {/* Zoom Level Selector */}
-          <div className="flex items-center gap-2 bg-slate-900 px-2 py-1 rounded-xl border border-slate-800">
-            <span className="text-[11px] text-slate-400">بزرگ‌نمایی:</span>
-            {[1, 1.5, 2, 3].map((lvl) => (
+          {/* Zoom Level Selector: Enhanced up to 20x */}
+          <div className="flex flex-wrap items-center gap-2 bg-slate-900 px-3 py-1.5 rounded-2xl border border-slate-800">
+            <span className="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+              <ZoomIn className="w-3.5 h-3.5 text-emerald-400" />
+              <span>بزرگ‌نمایی:</span>
+            </span>
+
+            {/* Quick Presets up to 20x */}
+            <div className="flex items-center gap-1">
+              {[1, 2, 5, 10, 15, 20].map((lvl) => (
+                <button
+                  key={lvl}
+                  type="button"
+                  onClick={() => setZoomLevel(lvl)}
+                  className={`px-2 py-0.5 rounded-lg text-[11px] font-mono transition cursor-pointer ${
+                    zoomLevel === lvl
+                      ? 'bg-[#099767] text-white font-bold shadow-sm'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
+                  }`}
+                >
+                  {lvl}x
+                </button>
+              ))}
+            </div>
+
+            {/* Slider & Step Buttons for Fine Tuning up to 20x */}
+            <div className="flex items-center gap-1.5 border-r border-slate-800 pr-2 mr-1">
               <button
-                key={lvl}
                 type="button"
-                onClick={() => setZoomLevel(lvl)}
-                className={`px-2 py-0.5 rounded-lg text-[11px] font-mono transition ${
-                  zoomLevel === lvl
-                    ? 'bg-[#099767] text-white font-bold'
-                    : 'text-slate-400 hover:text-slate-200'
-                }`}
+                onClick={() => setZoomLevel((prev) => Math.max(1, Number((prev - (prev > 5 ? 2 : 1)).toFixed(1))))}
+                className="p-1 hover:text-white text-slate-400 rounded transition cursor-pointer"
+                title="کاهش بزرگ‌نمایی"
               >
-                {lvl}x
+                <ZoomOut className="w-3.5 h-3.5" />
               </button>
-            ))}
+
+              <input
+                type="range"
+                min="1"
+                max="20"
+                step="0.5"
+                value={zoomLevel}
+                onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
+                className="w-20 sm:w-28 h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-[#10b981]"
+                title={`بزرگ‌نمایی فعلی: ${zoomLevel}x`}
+              />
+
+              <button
+                type="button"
+                onClick={() => setZoomLevel((prev) => Math.min(20, Number((prev + (prev >= 5 ? 2 : 1)).toFixed(1))))}
+                className="p-1 hover:text-white text-slate-400 rounded transition cursor-pointer"
+                title="افزایش بزرگ‌نمایی تا ۲۰ برابر"
+              >
+                <ZoomIn className="w-3.5 h-3.5" />
+              </button>
+
+              <span className="text-[11px] font-mono font-bold text-emerald-400 min-w-8 text-center">
+                {zoomLevel}x
+              </span>
+            </div>
           </div>
         </div>
 
-        {/* Scrollable Container when Zoom > 1 */}
+        {/* Scrollable Container when Zoom > 1 (supports up to 20x width) */}
         <div className="overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-700">
           <div
             style={{ width: `${zoomLevel * 100}%`, minWidth: '100%' }}
             className="transition-all duration-150 relative"
           >
-            {/* Time Ruler */}
-            <div className="flex justify-between text-[11px] font-mono text-slate-500 mb-2 px-1">
-              <span>00:00</span>
-              <span>{formatPlayerTime(maxDuration * 0.25)}</span>
-              <span>{formatPlayerTime(maxDuration * 0.5)}</span>
-              <span>{formatPlayerTime(maxDuration * 0.75)}</span>
-              <span>{formatPlayerTime(maxDuration)}</span>
+            {/* Dynamic Precision Time Ruler */}
+            <div className="relative h-6 text-[10px] font-mono text-slate-500 mb-2 px-1 select-none border-b border-slate-800/80">
+              {Array.from({
+                length: Math.min(120, Math.max(5, Math.round(5 * zoomLevel))),
+              }).map((_, idx, arr) => {
+                const fraction = idx / (arr.length - 1);
+                const tickSec = fraction * maxDuration;
+                return (
+                  <div
+                    key={idx}
+                    className="absolute top-0 flex flex-col items-center -translate-x-1/2 pointer-events-none"
+                    style={{ left: `${fraction * 100}%` }}
+                  >
+                    <span className="text-[9px] text-slate-400/90 leading-none">
+                      {formatPlayerTime(tickSec)}
+                    </span>
+                    <div className="w-[1px] h-2 bg-slate-700/80 mt-1" />
+                  </div>
+                );
+              })}
             </div>
 
             {/* Interactive Timeline Canvas */}
@@ -1566,10 +1954,10 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
                         <div className="flex items-center gap-1">
                           {((sub.leadingSilenceRemovedSec || 0) > 0 || (sub.trailingSilenceRemovedSec || 0) > 0) && (
                             <span
-                              className="px-1 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              className="px-1 py-0.5 rounded text-[8px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 inline-flex items-center"
                               title={`سکوت زائد پیرایش شد: -${((sub.leadingSilenceRemovedSec || 0) + (sub.trailingSilenceRemovedSec || 0)).toFixed(2)} ثانیه`}
                             >
-                              ✂
+                              <Scissors className="w-2.5 h-2.5" />
                             </span>
                           )}
                           {sub.shiftDirection && sub.shiftDirection !== 'none' && offset !== 0 ? (
@@ -2063,6 +2451,33 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
         onClose={() => setIsAutoFixModalOpen(false)}
         result={autoFixResult}
         onUndo={handleUndoAutoFix}
+        onSelectSubtitle={(subId) => {
+          setSelectedSubId(subId);
+          const target = subtitles.find((s) => s.id === subId);
+          if (target) {
+            handleSeek(target.start);
+          }
+        }}
+      />
+
+      {/* GPT-6 Luna AI Cloud Timeline Synchronization Modal */}
+      <AiSyncModal
+        isOpen={isAiSyncModalOpen}
+        onClose={() => setIsAiSyncModalOpen(false)}
+        result={aiSyncResult}
+        subtitles={subtitles}
+        onRegenerateModifiedAudio={handleRegenerateModifiedAudios}
+        isRegeneratingAudio={isRegeneratingAudio}
+        regenerateProgressMsg={regenerateProgressMsg}
+        onCompactGaps={handleCompactTimelineGaps}
+        onUndo={() => {
+          if (bulkSpeedHistorySnapshot) {
+            const restored = undoBulkSpeedChanges(subtitles, bulkSpeedHistorySnapshot);
+            onUpdateAllSubtitles?.(restored);
+            setBulkSpeedHistorySnapshot(null);
+            setSyncSuccessMsg('تغییرات سینک هوشمند به حالت اولیه بازگردانده شدند.');
+          }
+        }}
         onSelectSubtitle={(subId) => {
           setSelectedSubId(subId);
           const target = subtitles.find((s) => s.id === subId);

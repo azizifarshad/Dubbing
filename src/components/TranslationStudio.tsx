@@ -76,17 +76,17 @@ Your task is to translate English text into natural, concise, conversational Per
 ### 6. Golden Examples (Follow these patterns strictly):
 Example 1:
 English: "downloading and installing the VMware Player. Now, this is one of our first choice"
-WRONG (Dropped the second clause): "دانلود و نصب VMware Player." ❌ (Missing critical meaning!)
-CORRECT (Conversational & Complete): "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست." ✅
+WRONG (Dropped the second clause): "دانلود و نصب VMware Player." [نادرست] (Missing critical meaning!)
+CORRECT (Conversational & Complete): "دانلود و نصب VMware Player؛ این یکی از انتخاب‌های اصلی ماست." [صحیح]
 
 Example 2:
 English: "Hey, everybody, welcome back. It's Mo again. Well, this lecture what we're going to be doing is"
-WRONG (Stiff & chopped off): "سلام، خوش اومدید، دوباره مو هستم." ❌
-CORRECT (Natural Instructor Style): "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..." ✅
+WRONG (Stiff & chopped off): "سلام، خوش اومدید، دوباره مو هستم." [نادرست]
+CORRECT (Natural Instructor Style): "سلام مو هستم خوش اومدید، توی این درس می‌خوایم..." [صحیح]
 
 Example 3:
 English: "In this function we handle the callback and catch any runtime error."
-CORRECT: "توی این Function، کال‌بک (Callback) رو هندل می‌کنیم و جلوی Runtime Error رو می‌گیریم." ✅`;
+CORRECT: "توی این Function، کال‌بک (Callback) رو هندل می‌کنیم و جلوی Runtime Error رو می‌گیریم." [صحیح]`;
 
 export const TranslationStudio: React.FC<TranslationStudioProps> = ({
   apiKey,

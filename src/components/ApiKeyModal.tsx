@@ -43,7 +43,7 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
   const [inputKey, setInputKey] = useState(apiKey);
   const [inputBaseUrl, setInputBaseUrl] = useState(baseUrl);
   const [inputTransModel, setInputTransModel] = useState(() => {
-    if (!translationModel || translationModel.toLowerCase().includes('gpt-4') || translationModel === 'Anthropic: Claude Haiku 5.5') {
+    if (!translationModel || translationModel === 'Anthropic: Claude Haiku 5.5' || translationModel === 'anthropic/claude-sonnet-5:batch') {
       return 'openai/gpt-6-luna';
     }
     return translationModel;
@@ -334,8 +334,9 @@ export const ApiKeyModal: React.FC<ApiKeyModalProps> = ({
               <div className="flex flex-wrap items-center gap-1.5 pt-1">
                 <span className="text-[10px] text-slate-500">مدل‌های فعال شما در هرمز:</span>
                 {[
-                  { id: 'openai/gpt-6-luna', label: 'GPT-6 Luna (پیش‌فرض - سریع و اقتصادی)' },
+                  { id: 'openai/gpt-6-luna', label: 'GPT-6 Luna (پیش‌فرض - دقیق و فوق‌العاده سریع برای سینک و ترجمه)' },
                   { id: 'openai/gpt-6-luna-pro', label: 'GPT-6 Luna Pro (بالاترین کیفیت و دقت)' },
+                  { id: 'anthropic/claude-sonnet-5:batch', label: 'Claude Sonnet 5 (batch)' },
                   { id: 'deepseek/deepseek-v4.1-flash-1017', label: 'DeepSeek Flash 4.1 (پرسرعت و اقتصادی)' },
                   { id: 'openai/gpt-6-luna-batch', label: 'GPT-6 Luna (batch)' },
                 ].map((m) => (
