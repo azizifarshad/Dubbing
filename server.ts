@@ -2317,10 +2317,10 @@ Rules:
 });
 
 // ==============================================================================
-// 🎬 Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy, high-fidelity audio multiplexing)
+// Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy, high-fidelity audio multiplexing)
 // ==============================================================================
 // ==============================================================================
-// 🎙️ Upload Dubbed WAV Audio Track (Binary Stream - Zero HTTP Header Overhead)
+// Upload Dubbed WAV Audio Track (Binary Stream - Zero HTTP Header Overhead)
 // ==============================================================================
 app.post(
   '/api/upload-dubbed-audio',
@@ -2345,7 +2345,7 @@ app.post(
 );
 
 // ==============================================================================
-// 🎬 Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy) & Python Fallback
+// Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy) & Python Fallback
 // ==============================================================================
 app.post(
   '/api/render-dubbed-video',
@@ -2452,7 +2452,7 @@ app.post(
 );
 
 // ==============================================================================
-// 🤖 AI Cloud Timeline Synchronization & Conflict Resolver API (OpenAI GPT-6 Luna / Hormouz / Gemini)
+// AI Cloud Timeline Synchronization & Conflict Resolver API (OpenAI GPT-6 Luna / Hormouz / Gemini)
 // ==============================================================================
 app.post('/api/ai-sync-timeline', async (req: Request, res: Response) => {
   const { subtitles = [], model, maxAllowedSpeed = 1.25, minPauseSec = 0.12 } = req.body;

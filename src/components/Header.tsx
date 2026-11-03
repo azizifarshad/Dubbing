@@ -17,20 +17,13 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="border-b border-slate-800/80 bg-[#090d11]/85 backdrop-blur-md sticky top-0 z-30 transition-all duration-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-22 sm:h-24 md:h-26 flex items-center justify-between">
-        {/* Brand identity & prominent logo */}
-        <div className="flex items-center gap-4 sm:gap-5">
-          <div className="relative group cursor-pointer">
-            <img
-              src="/logo.png"
-              alt="Vidans Logo"
-              className="w-16 h-16 sm:w-20 sm:h-20 md:w-22 md:h-22 rounded-full object-cover shadow-2xl shadow-[#099767]/30 ring-2 sm:ring-3 ring-[#099767]/60 transition-all duration-300 group-hover:scale-105 group-hover:ring-[#099767]/90 animate-logo-glow"
-            />
-          </div>
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-black tracking-tight text-white drop-shadow-md">
-              Vidans
-            </h1>
-          </div>
+        {/* Brand identity & prominent header logo */}
+        <div className="flex items-center">
+          <img
+            src="/header-logo.png"
+            alt="ویدانس - Vidans"
+            className="h-14 sm:h-16 md:h-18 w-auto object-contain cursor-pointer transition-transform duration-300 hover:scale-105 drop-shadow-[0_4px_20px_rgba(9,151,103,0.35)]"
+          />
         </div>
 
         {/* Action Controls & API Key Status */}

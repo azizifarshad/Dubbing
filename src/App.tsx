@@ -67,6 +67,7 @@ export default function App() {
   // 5. Active stepper view (1 through 5)
   const [activeStep, setActiveStep] = useState<number>(1);
   const [viewMode, setViewMode] = useState<'stepper' | 'all'>('stepper');
+  const [showFooterAuthor, setShowFooterAuthor] = useState<boolean>(false);
 
   // Verify server environment credentials on initial mount
   useEffect(() => {
@@ -410,12 +411,31 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-slate-800/60 bg-[#090d11] py-6 text-center text-xs text-slate-500 mt-12">
+      <footer className="border-t border-slate-800/60 bg-[#090d11] py-6 text-center text-xs text-slate-500 mt-12 select-none">
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
-          <span className="flex items-center gap-2 text-slate-400">
-            <img src="/logo.png" alt="Vidans" className="w-5 h-5 rounded-full object-cover" />
-            Vidans
-          </span>
+          <button
+            type="button"
+            onClick={() => setShowFooterAuthor((prev) => !prev)}
+            className="group flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 text-slate-400 hover:text-slate-200 transition-all duration-300 cursor-pointer shadow-sm active:scale-95"
+            title="کلیک کنید"
+          >
+            <img
+              src="/logo.png"
+              alt="Vidans Logo"
+              className="w-5 h-5 rounded-full object-cover ring-1 ring-[#099767]/50 group-hover:ring-[#099767] transition-all"
+            />
+            <span className="font-medium transition-all duration-300">
+              {showFooterAuthor ? (
+                <span className="text-[#34d399] font-semibold tracking-wide animate-fade-in">
+                  Farshad Azizi
+                </span>
+              ) : (
+                <span className="text-slate-400 group-hover:text-slate-300">
+                  Vidans
+                </span>
+              )}
+            </span>
+          </button>
         </div>
       </footer>
 
