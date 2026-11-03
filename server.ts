@@ -2320,15 +2320,45 @@ Rules:
 // ==============================================================================
 // 🎬 Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy, high-fidelity audio multiplexing)
 // ==============================================================================
+// ==============================================================================
+// 🎙️ Upload Dubbed WAV Audio Track (Binary Stream - Zero HTTP Header Overhead)
+// ==============================================================================
+app.post(
+  '/api/upload-dubbed-audio',
+  express.raw({ type: () => true, limit: '400mb' }),
+  async (req: Request, res: Response) => {
+    try {
+      const audioBuffer = req.body;
+      if (!audioBuffer || !Buffer.isBuffer(audioBuffer) || audioBuffer.length === 0) {
+        return res.status(400).json({ success: false, error: 'فایل صوتی دوبله ارسال نشده است.' });
+      }
+
+      const audioId = 'aud_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      const tempAudioPath = path.join(os.tmpdir(), `${audioId}.wav`);
+      await fs.promises.writeFile(tempAudioPath, audioBuffer);
+
+      return res.json({ success: true, audioId, size: audioBuffer.length });
+    } catch (err: any) {
+      console.error('[Upload Dubbed Audio Error]:', err);
+      return res.status(500).json({ success: false, error: err.message || 'خطا در بارگذاری ترک صوتی دوبله' });
+    }
+  }
+);
+
+// ==============================================================================
+// 🎬 Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy) & Python Fallback
+// ==============================================================================
 app.post(
   '/api/render-dubbed-video',
-  express.raw({ type: ['multipart/form-data', 'application/octet-stream', 'video/*'], limit: '600mb' }),
+  express.raw({ type: ['multipart/form-data', 'application/octet-stream', 'video/*', '*/*'], limit: '800mb' }),
   async (req: Request, res: Response) => {
+    const audioId = (req.query.audioId as string) || '';
     const rawAudioBase64 = (req.headers['x-audio-base64'] as string) || '';
     const outputName = (req.query.outputName as string) || 'persian_dubbed_video';
     const tempId = 'mux_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
     const tempVideoPath = path.join(os.tmpdir(), `${tempId}_video.mp4`);
-    const tempAudioPath = path.join(os.tmpdir(), `${tempId}_audio.wav`);
+    let tempAudioPath = audioId ? path.join(os.tmpdir(), `${audioId}.wav`) : '';
+    const generatedAudioPath = path.join(os.tmpdir(), `${tempId}_audio.wav`);
     const tempOutputPath = path.join(os.tmpdir(), `${tempId}_dubbed.mp4`);
 
     try {
@@ -2339,43 +2369,72 @@ app.post(
 
       await fs.promises.writeFile(tempVideoPath, videoBuffer);
 
-      if (!rawAudioBase64) {
+      if (audioId && fs.existsSync(tempAudioPath)) {
+        // Audio already uploaded cleanly via /api/upload-dubbed-audio
+      } else if (rawAudioBase64) {
+        const cleanAudioBase64 = rawAudioBase64.replace(/^data:audio\/\w+;base64,/, '').trim();
+        const audioBuffer = Buffer.from(cleanAudioBase64, 'base64');
+        await fs.promises.writeFile(generatedAudioPath, audioBuffer);
+        tempAudioPath = generatedAudioPath;
+      } else {
         return res.status(400).json({ success: false, error: 'ترک صوتی دوبله ارسال نشده است.' });
       }
 
-      const cleanAudioBase64 = rawAudioBase64.replace(/^data:audio\/\w+;base64,/, '').trim();
-      const audioBuffer = Buffer.from(cleanAudioBase64, 'base64');
-      await fs.promises.writeFile(tempAudioPath, audioBuffer);
+      let muxSuccess = false;
+      const ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
 
-      let ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
+      // 1. First attempt: Direct System FFmpeg (-c:v copy, high fidelity audio multiplexing)
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const proc = spawn(ffmpegBin, [
+            '-y',
+            '-i', tempVideoPath,
+            '-i', tempAudioPath,
+            '-map', '0:v:0',
+            '-map', '1:a:0',
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-b:a', '192k',
+            '-shortest',
+            '-movflags', '+faststart',
+            tempOutputPath,
+          ]);
 
-      // Multiplex video with dubbed audio track:
-      // -c:v copy: preserves 100% original video frames, zero quality loss, fast rendering
-      // -c:a aac -b:a 192k: crystal-clear AAC audio
-      // -map 0:v:0 -map 1:a:0: maps video from video stream and audio from dubbed track
-      // -shortest: match lengths
-      await new Promise<void>((resolve, reject) => {
-        const proc = spawn(ffmpegBin, [
-          '-i', tempVideoPath,
-          '-i', tempAudioPath,
-          '-map', '0:v:0',
-          '-map', '1:a:0',
-          '-c:v', 'copy',
-          '-c:a', 'aac',
-          '-b:a', '192k',
-          '-shortest',
-          '-movflags', '+faststart',
-          '-y', tempOutputPath,
-        ]);
-
-        let stderr = '';
-        proc.stderr.on('data', (d) => { stderr += d.toString(); });
-        proc.on('close', (code) => {
-          if (code === 0 && fs.existsSync(tempOutputPath)) resolve();
-          else reject(new Error(`خطای میکس ویدیوی نهایی (${code}): ${stderr.slice(-300)}`));
+          let stderr = '';
+          proc.stderr.on('data', (d) => { stderr += d.toString(); });
+          proc.on('close', (code) => {
+            if (code === 0 && fs.existsSync(tempOutputPath) && fs.statSync(tempOutputPath).size > 1024) {
+              resolve();
+            } else {
+              reject(new Error(`FFmpeg exit ${code}: ${stderr.slice(-300)}`));
+            }
+          });
+          proc.on('error', (err) => reject(err));
         });
-        proc.on('error', (err) => reject(err));
-      });
+        muxSuccess = true;
+      } catch (ffErr: any) {
+        console.warn('[Direct FFmpeg Muxing Warning]:', ffErr.message);
+      }
+
+      // 2. Second attempt: Python Muxer Fallback (mux_video.py with PyAV / FFmpeg)
+      if (!muxSuccess || !fs.existsSync(tempOutputPath)) {
+        console.log('[Python Muxer] Running python mux_video.py fallback...');
+        await new Promise<void>((resolve, reject) => {
+          const pyProc = spawn('python', ['mux_video.py', tempVideoPath, tempAudioPath, tempOutputPath]);
+          let stdout = '';
+          let stderr = '';
+          pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
+          pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
+          pyProc.on('close', (code) => {
+            if (fs.existsSync(tempOutputPath) && fs.statSync(tempOutputPath).size > 1024) {
+              resolve();
+            } else {
+              reject(new Error(`خطای پایتون (${code}): ${stdout || stderr}`));
+            }
+          });
+          pyProc.on('error', (err) => reject(new Error(`عدم امکان اجرای پایتون: ${err.message}`)));
+        });
+      }
 
       const finalVideoBuf = await fs.promises.readFile(tempOutputPath);
       res.setHeader('Content-Type', 'video/mp4');
@@ -2386,7 +2445,8 @@ app.post(
       res.status(500).json({ success: false, error: err.message || 'خطا در رندر ویدیوی نهایی دوبله شده' });
     } finally {
       try { if (fs.existsSync(tempVideoPath)) await fs.promises.unlink(tempVideoPath); } catch (_) {}
-      try { if (fs.existsSync(tempAudioPath)) await fs.promises.unlink(tempAudioPath); } catch (_) {}
+      try { if (tempAudioPath && fs.existsSync(tempAudioPath)) await fs.promises.unlink(tempAudioPath); } catch (_) {}
+      try { if (fs.existsSync(generatedAudioPath)) await fs.promises.unlink(generatedAudioPath); } catch (_) {}
       try { if (fs.existsSync(tempOutputPath)) await fs.promises.unlink(tempOutputPath); } catch (_) {}
     }
   }

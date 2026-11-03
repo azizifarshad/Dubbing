@@ -283,6 +283,7 @@ export default function App() {
           {/* Step 1: Uploaders */}
           <div className={`animate-fade-in ${activeStep === 1 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <FileUploaderSection
+              onVideoFileLoaded={(file) => setOriginalVideoFile(file)}
               apiKey={apiKey}
               baseUrl={baseUrl}
               hasEnvKey={hasEnvKey}
@@ -357,6 +358,8 @@ export default function App() {
           {/* Step 5: Export & Download */}
           <div className={`animate-fade-in ${activeStep === 5 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <ExportStudio
+              originalVideoFile={originalVideoFile}
+              onVideoFileLoaded={(file) => setOriginalVideoFile(file)}
               subtitles={subtitles}
               originalAudioBuffer={originalAudioBuffer}
               originalAudioName={originalAudioName}

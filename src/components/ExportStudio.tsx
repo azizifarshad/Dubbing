@@ -125,21 +125,44 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
 
     setIsRenderingVideo(true);
     try {
-      const base64Audio = await blobToBase64(activeWav);
-      const res = await fetch(`/api/render-dubbed-video?outputName=${encodeURIComponent(effectiveBaseName + '_dubbed')}`, {
+      // Step 1: Upload the rendered WAV audio directly as binary stream (Zero header overhead)
+      setRenderProgress({ percent: 30, message: 'در حال ارسال ترک صوتی دوبله به سرور...' });
+      const audioRes = await fetch('/api/upload-dubbed-audio', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'video/mp4',
-          'x-audio-base64': base64Audio,
-        },
-        body: selectedVideoFile,
+        headers: { 'Content-Type': 'audio/wav' },
+        body: activeWav,
       });
+
+      if (!audioRes.ok) {
+        const errJson = await audioRes.json().catch(() => null);
+        throw new Error(errJson?.error || 'خطا در بارگذاری ترک صوتی دوبله به سرور');
+      }
+
+      const audioData = await audioRes.json();
+      const audioId = audioData.audioId;
+      if (!audioId) {
+        throw new Error('شناسه ترک صوتی از سرور دریافت نشد');
+      }
+
+      // Step 2: Upload original video and mux with the audio
+      setRenderProgress({ percent: 70, message: 'در حال میکس ترک دوبله روی ویدیو با FFmpeg و پایتون...' });
+      const res = await fetch(
+        `/api/render-dubbed-video?audioId=${encodeURIComponent(audioId)}&outputName=${encodeURIComponent(effectiveBaseName + '_dubbed')}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': selectedVideoFile.type || 'video/mp4',
+          },
+          body: selectedVideoFile,
+        }
+      );
 
       if (!res.ok) {
         const errJson = await res.json().catch(() => null);
         throw new Error(errJson?.error || 'خطا در رندر ویدیو با سرور');
       }
 
+      setRenderProgress({ percent: 100, message: 'ویدیوی دوبله شده آماده شد!' });
       const videoBlob = await res.blob();
       const videoUrl = URL.createObjectURL(videoBlob);
       setRenderedVideoBlob(videoBlob);

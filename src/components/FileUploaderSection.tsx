@@ -53,6 +53,7 @@ interface FileUploaderSectionProps {
   originalAudioName: string;
   originalAudioDuration: number;
   onAudioLoaded: (buffer: AudioBuffer, fileName: string, url: string) => void;
+  onVideoFileLoaded?: (file: File) => void;
   onProceedToTranslation?: () => void;
   isProcessingAudio: boolean;
 }
