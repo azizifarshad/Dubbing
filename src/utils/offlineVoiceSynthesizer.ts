@@ -81,17 +81,23 @@ export async function generateOfflineSpeechAudio(
   // Convert to clean standard WAV Blob
   const wavBlob = audioBufferToWav(audioBuffer);
 
-  // Convert Blob to Base64
-  const base64 = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      const base64Data = result.replace(/^data:audio\/\w+;base64,/, '');
-      resolve(base64Data);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(wavBlob);
-  });
+  // Convert Blob to Base64 (compatible with both Browser and Node environments)
+  let base64 = '';
+  if (typeof FileReader !== 'undefined') {
+    base64 = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const result = reader.result as string;
+        const base64Data = result.replace(/^data:audio\/\w+;base64,/, '');
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(wavBlob);
+    });
+  } else {
+    const arrayBuf = await wavBlob.arrayBuffer();
+    base64 = Buffer.from(arrayBuf).toString('base64');
+  }
 
   return {
     audioBase64: base64,

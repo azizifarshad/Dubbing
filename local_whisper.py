@@ -37,8 +37,28 @@ def transcribe(audio_path, model_size="base"):
         except Exception:
             pass
 
-        # Load Whisper model with word-level forced alignment
-        model = WhisperModel(model_size, device=device, compute_type=compute_type)
+        # Resolve offline local model path
+        model_path = model_size
+        local_candidates = [
+            os.environ.get("WHISPER_MODEL_PATH"),
+            os.path.join(os.path.dirname(__file__), "models", f"faster-whisper-{model_size}"),
+            os.path.join(os.environ.get("ProgramData", "C:\\ProgramData"), "DubbingGholam", "models", f"faster-whisper-{model_size}"),
+        ]
+        try:
+            import glob
+            cache_snapshots = glob.glob(os.path.expanduser(f"~/.cache/huggingface/hub/models--Systran--faster-whisper-{model_size}/snapshots/*"))
+            if cache_snapshots:
+                local_candidates.append(cache_snapshots[0])
+        except Exception:
+            pass
+
+        for cand in local_candidates:
+            if cand and os.path.exists(cand) and (os.path.exists(os.path.join(cand, "model.bin")) or os.path.exists(os.path.join(cand, "model.safetensors"))):
+                model_path = cand
+                break
+
+        # Load Whisper model with word-level forced alignment (100% offline, local_files_only)
+        model = WhisperModel(model_path, device=device, compute_type=compute_type, local_files_only=True)
         
         # Transcribe with physical word-level timestamps & VAD speech segmentation
         segments, info = model.transcribe(

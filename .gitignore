@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+*.dblic
+*.dbreq
+dist-installer/
+models/
+tools/license-generator/dist/
+tools/license-generator/build/
+tools/license-generator/keys/owner_private_key.pem

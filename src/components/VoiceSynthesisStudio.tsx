@@ -57,7 +57,7 @@ export const VoiceSynthesisStudio: React.FC<VoiceSynthesisStudioProps> = ({
   onOpenApiKeyModal,
 }) => {
   const [selectedPersonaId, setSelectedPersonaId] = useState<string>('iapetus_online_instructor');
-  const [voiceEngine, setVoiceEngine] = useState<'gemini' | 'browser'>('gemini');
+  const [voiceEngine, setVoiceEngine] = useState<'gemini' | 'browser'>(() => (apiKey ? 'gemini' : 'browser'));
   const [isGeneratingAll, setIsGeneratingAll] = useState(false);
   const [currentGeneratingId, setCurrentGeneratingId] = useState<number | null>(null);
   const [isDailyLimitHit, setIsDailyLimitHit] = useState<boolean>(false);

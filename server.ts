@@ -8,6 +8,12 @@ import { fileURLToPath } from 'url';
 import { GoogleGenAI, Type } from '@google/genai';
 import { scoreAndSelectTranslationCandidates } from './src/utils/candidateScorer.ts';
 import { translateOfflineLocally } from './src/utils/localTranslator.ts';
+import {
+  checkCurrentLicense,
+  generateActivationRequest,
+  installLicense,
+} from './src/utils/licenseManager.ts';
+import { getHardwareInfo } from './src/utils/hardwareIdentity.ts';
 
 dotenv.config();
 
@@ -17,10 +23,80 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
+// ==============================================================================
+// Offline Hardware-Bound Licensing Middleware & Endpoints
+// ==============================================================================
+
+// Helper middleware: enforce permanent offline license on processing endpoints
+const requireLicense = (req: Request, res: Response, next: express.NextFunction) => {
+  const lic = checkCurrentLicense();
+  if (!lic.isValid) {
+    return res.status(403).json({
+      success: false,
+      error: lic.messageFa || 'برای استفاده از امکانات نرم‌افزار، ابتدا لایسنس دائمی را فعال نمایید.',
+      licenseStatus: lic.status,
+      licenseRequired: true,
+    });
+  }
+  next();
+};
+
+// Returns current license status and physical device hardware info
+app.get('/api/license/status', (_req: Request, res: Response) => {
+  try {
+    const lic = checkCurrentLicense();
+    const hw = getHardwareInfo();
+    return res.json({
+      success: true,
+      ...lic,
+      hardwareInfo: {
+        computerName: hw.computerName,
+        osName: hw.osName,
+        cpuModel: hw.cpuModel,
+        hardwareFingerprint: hw.hardwareFingerprint,
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Generates activation request file payload (.dbreq)
+app.post('/api/license/request', (_req: Request, res: Response) => {
+  try {
+    const requestData = generateActivationRequest();
+    return res.json({
+      success: true,
+      request: requestData,
+      filename: `DubbingGholam_ActivationRequest_${requestData.computerName}.dbreq`,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+// Installs and saves a signed license file (.dblic)
+app.post('/api/license/activate', express.json(), (req: Request, res: Response) => {
+  try {
+    const { licenseContent } = req.body;
+    if (!licenseContent || typeof licenseContent !== 'string') {
+      return res.status(400).json({ success: false, error: 'محتوای فایل لایسنس ارسال نشده است.' });
+    }
+    const result = installLicense(licenseContent);
+    return res.status(result.isValid ? 200 : 400).json({
+      success: result.isValid,
+      ...result,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+});
+
 // Video to WAV extraction endpoint using FFmpeg (PCM 16-bit, 44100Hz, Stereo)
 // Accepts raw video binary payload up to 300MB
 app.post(
   '/api/convert-video-to-wav',
+  requireLicense,
   express.raw({ type: () => true, limit: '300mb' }),
   async (req: Request, res: Response) => {
     const rawExt = typeof req.query.ext === 'string' ? req.query.ext.replace(/[^a-zA-Z0-9]/g, '') : 'mp4';
@@ -111,6 +187,7 @@ app.post(
 // Endpoint to extract embedded subtitle tracks (.srt) directly from video files via FFmpeg
 app.post(
   '/api/extract-video-subtitles',
+  requireLicense,
   express.raw({ type: ['video/*', 'application/octet-stream', 'multipart/form-data'], limit: '500mb' }),
   async (req: Request, res: Response) => {
     const tempId = 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
@@ -248,6 +325,7 @@ function formatSrtTimestamp(seconds: number): string {
 // Endpoint to automatically extract English subtitles (.srt) directly from video using FFmpeg audio extraction + Gemini Speech AI
 app.post(
   '/api/transcribe-video-to-srt',
+  requireLicense,
   express.raw({ type: ['video/*', 'audio/*', 'application/octet-stream', 'multipart/form-data'], limit: '500mb' }),
   async (req: Request, res: Response) => {
     const tempId = 'vid_stt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
@@ -866,16 +944,7 @@ async function translateSingleSentence(text: string, style: string = 'colloquial
   const clean = text.trim();
   if (!clean) return '';
 
-  const googleFa = await translateWithGoogleFree(clean);
-  if (googleFa) {
-    return postProcessPersian(googleFa, clean, style);
-  }
-
-  const myMemFa = await translateWithMyMemory(clean);
-  if (myMemFa) {
-    return postProcessPersian(myMemFa, clean, style);
-  }
-
+  // 100% Offline execution: translate using local specialized dictionary & dubbing grammar engine
   const localFa = translateOfflineLocally(clean, style);
   return postProcessPersian(localFa, clean, style);
 }
@@ -1695,7 +1764,7 @@ function evaluateAndEnrichTranslations(
   });
 }
 
-app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
+app.post('/api/translate-subtitles', requireLicense, async (req: Request, res: Response) => {
   const { lines, style = 'colloquial', context = '', customPrompt } = req.body;
   const config = getApiConfig(req);
 
@@ -1874,7 +1943,7 @@ app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
 });
 
 // Dedicated Local/Internal Translation Endpoint
-app.post('/api/translate-fallback', async (req: Request, res: Response) => {
+app.post('/api/translate-fallback', requireLicense, async (req: Request, res: Response) => {
   try {
     const { lines, style = 'colloquial' } = req.body;
     if (!Array.isArray(lines) || lines.length === 0) {
@@ -1897,13 +1966,58 @@ app.post('/api/translate-fallback', async (req: Request, res: Response) => {
 });
 
 // 2.5 Transcribe & Align English Audio with Exact Timestamps
-app.post('/api/transcribe-audio', async (req: Request, res: Response) => {
+app.post('/api/transcribe-audio', requireLicense, async (req: Request, res: Response) => {
   try {
     const { audioBase64, mimeType = 'audio/mp3', totalDuration } = req.body;
     const customKey = req.body.apiKey || (req.headers['x-gemini-api-key'] as string);
 
     if (!audioBase64) {
       return res.status(400).json({ error: 'فایل صوتی ارسال نشده است.' });
+    }
+
+    // Helper: Run local faster-whisper on base64 audio buffer
+    const runOfflineWhisper = async () => {
+      const ext = mimeType.includes('wav') ? 'wav' : 'mp3';
+      const tempAudioFile = path.join(os.tmpdir(), `aud_stt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`);
+      await fs.promises.writeFile(tempAudioFile, Buffer.from(audioBase64, 'base64'));
+      try {
+        const localSegments = await new Promise<any[]>((resolve, reject) => {
+          const pyProc = spawn('python', ['local_whisper.py', tempAudioFile, 'base']);
+          let stdout = '';
+          let stderr = '';
+          pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
+          pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
+          pyProc.on('close', (code) => {
+            try {
+              const resJson = JSON.parse(stdout.trim());
+              if (resJson.success && Array.isArray(resJson.segments)) {
+                resolve(resJson.segments);
+              } else {
+                reject(new Error(resJson.error || stderr || `Whisper exit code ${code}`));
+              }
+            } catch (err: any) {
+              reject(new Error(`خطا در استخراج با Whisper محلی: ${stdout || stderr}`));
+            }
+          });
+          pyProc.on('error', (err) => reject(new Error(`عدم امکان اجرای پایتون برای Whisper: ${err.message}`)));
+        });
+        await fs.promises.unlink(tempAudioFile).catch(() => {});
+        return localSegments.map((seg, idx) => ({
+          id: idx + 1,
+          start: seg.start,
+          end: seg.end,
+          text: (seg.text || '').trim(),
+        }));
+      } catch (err) {
+        await fs.promises.unlink(tempAudioFile).catch(() => {});
+        throw err;
+      }
+    };
+
+    // If no online API key is supplied, run 100% offline local Whisper
+    if (!customKey && !process.env.GEMINI_API_KEY) {
+      const segments = await runOfflineWhisper();
+      return res.json({ success: true, segments });
     }
 
     const ai = getGenAIClient(customKey);
@@ -1999,7 +2113,7 @@ Rules:
 });
 
 // 3. Generate Persian Audio Speech (TTS) for a Single Subtitle Line
-app.post('/api/tts', async (req: Request, res: Response) => {
+app.post('/api/tts', requireLicense, async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
     const { text, voice, emotion = '', style = '', persona = 'patient_teacher' } = req.body;
@@ -2194,7 +2308,7 @@ app.post('/api/tts', async (req: Request, res: Response) => {
 // ==============================================================================
 // Synchronization Engine API: Pitch-Preserving Time Stretching via FFmpeg (Rubber Band / Atempo)
 // ==============================================================================
-app.post('/api/time-stretch-audio', async (req: Request, res: Response) => {
+app.post('/api/time-stretch-audio', requireLicense, async (req: Request, res: Response) => {
   const { audioBase64, tempo = 1.0 } = req.body;
 
   if (!audioBase64 || typeof audioBase64 !== 'string') {
@@ -2279,7 +2393,7 @@ app.post('/api/time-stretch-audio', async (req: Request, res: Response) => {
 // ==============================================================================
 // Duration-Aware Text Adaptation & Shortening API
 // ==============================================================================
-app.post('/api/adapt-translation-duration', async (req: Request, res: Response) => {
+app.post('/api/adapt-translation-duration', requireLicense, async (req: Request, res: Response) => {
   const { text, targetDuration, style = 'colloquial', customPrompt } = req.body;
   const config = getApiConfig(req);
 
@@ -2364,6 +2478,7 @@ Rules:
 // ==============================================================================
 app.post(
   '/api/upload-dubbed-audio',
+  requireLicense,
   express.raw({ type: () => true, limit: '400mb' }),
   async (req: Request, res: Response) => {
     try {
@@ -2389,6 +2504,7 @@ app.post(
 // ==============================================================================
 app.post(
   '/api/render-dubbed-video',
+  requireLicense,
   express.raw({ type: ['multipart/form-data', 'application/octet-stream', 'video/*', '*/*'], limit: '800mb' }),
   async (req: Request, res: Response) => {
     const audioId = (req.query.audioId as string) || '';
@@ -2494,7 +2610,7 @@ app.post(
 // ==============================================================================
 // AI Cloud Timeline Synchronization & Conflict Resolver API (OpenAI GPT-6 Luna / Hormouz / Gemini)
 // ==============================================================================
-app.post('/api/ai-sync-timeline', async (req: Request, res: Response) => {
+app.post('/api/ai-sync-timeline', requireLicense, async (req: Request, res: Response) => {
   const { subtitles = [], model, maxAllowedSpeed = 1.25, minPauseSec = 0.12 } = req.body;
   const config = getApiConfig(req);
   const targetModel = model || config.translationModel || 'openai/gpt-6-luna';

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { SubtitleItem } from './types/dubbing';
 import { Header } from './components/Header';
 import { ApiKeyModal } from './components/ApiKeyModal';
+import { LicenseModal } from './components/LicenseModal';
 import { FileUploaderSection } from './components/FileUploaderSection';
 import { TranslationStudio } from './components/TranslationStudio';
 import { VoiceSynthesisStudio } from './components/VoiceSynthesisStudio';
@@ -42,6 +43,30 @@ export default function App() {
   });
   const [hasEnvKey, setHasEnvKey] = useState<boolean>(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+
+  // Offline Permanent Licensing State
+  const [isLicensed, setIsLicensed] = useState<boolean>(true); // Optimistic until checked
+  const [customerName, setCustomerName] = useState<string>('');
+  const [isLicenseModalOpen, setIsLicenseModalOpen] = useState<boolean>(false);
+
+  const fetchLicenseStatus = () => {
+    fetch('/api/license/status')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.isValid) {
+          setIsLicensed(true);
+          setCustomerName(data.customerName || '');
+        } else {
+          setIsLicensed(false);
+          setIsLicenseModalOpen(true);
+        }
+      })
+      .catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchLicenseStatus();
+  }, []);
 
   // 2. Parsed subtitles and project cues
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
@@ -196,6 +221,9 @@ export default function App() {
     <div className="min-h-screen bg-[#090d11] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif]">
       {/* Top Navigation Bar */}
       <Header
+        onOpenLicenseModal={() => setIsLicenseModalOpen(true)}
+        isLicensed={isLicensed}
+        customerName={customerName}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         hasApiKey={Boolean(apiKey || hasEnvKey)}
         activeLinesCount={subtitles.length}
@@ -204,6 +232,25 @@ export default function App() {
 
       {/* Main Studio Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+        {/* Unlicensed Warning Notice */}
+        {!isLicensed && (
+          <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-200 shadow-xl">
+            <div className="flex items-center gap-3">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
+              <div className="text-xs">
+                <strong>نرم‌افزار فعال‌سازی نشده است:</strong> برای دسترسی و استفاده نامحدود آفلاین، لطفاً فایل لایسنس دائمی خود را وارد فرمایید.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsLicenseModalOpen(true)}
+              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition shrink-0 shadow cursor-pointer"
+            >
+              فعال‌سازی لایسنس دائمی
+            </button>
+          </div>
+        )}
+
         {/* Hero Introduction Banner with prominent logo */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-l from-[#099767]/20 via-[#0f151d] to-[#090d11] border border-[#099767]/30 p-6 sm:p-8 shadow-2xl shadow-black/50 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
           <div className="relative z-10 max-w-2xl space-y-3">
@@ -438,6 +485,14 @@ export default function App() {
           </button>
         </div>
       </footer>
+
+      {/* License Modal */}
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        onLicenseChanged={fetchLicenseStatus}
+        isMandatoryActivation={!isLicensed}
+      />
 
       {/* API Key Modal */}
       <ApiKeyModal

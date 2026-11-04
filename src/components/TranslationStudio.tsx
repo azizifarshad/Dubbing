@@ -100,10 +100,13 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
   onUpdateTranslationModel,
 }) => {
   const [translationEngine, setTranslationEngine] = useState<'gpt' | 'deepseek' | 'local'>(() => {
-    if (translationModel && translationModel.toLowerCase().includes('deepseek')) {
-      return 'deepseek';
+    if (apiKey) {
+      if (translationModel && translationModel.toLowerCase().includes('deepseek')) {
+        return 'deepseek';
+      }
+      return 'gpt';
     }
-    return 'gpt';
+    return 'local';
   });
   const [selectedStyle, setSelectedStyle] = useState<TranslationStyle>('colloquial');
   const [isTranslating, setIsTranslating] = useState(false);
@@ -117,12 +120,14 @@ const effectiveModel =
           : 'openai/gpt-6-luna');
 
   useEffect(() => {
-    if (translationModel && translationModel.toLowerCase().includes('deepseek')) {
-      setTranslationEngine('deepseek');
-    } else if (translationEngine !== 'local') {
-      setTranslationEngine('gpt');
+    if (apiKey) {
+      if (translationModel && translationModel.toLowerCase().includes('deepseek')) {
+        setTranslationEngine('deepseek');
+      } else if (translationEngine !== 'local') {
+        setTranslationEngine('gpt');
+      }
     }
-  }, [translationModel]);
+  }, [translationModel, apiKey]);
   const [globalVoice, setGlobalVoice] = useState<GeminiVoiceId>('Iapetus');
   const [showPromptModal, setShowPromptModal] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState(false);
