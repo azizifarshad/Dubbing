@@ -954,6 +954,82 @@ async function translateWithFallbackEngine(lines: Array<{ id: number; text: stri
   return translations;
 }
 
+// Helper to robustly extract and parse JSON from LLM responses (stripping markdown fences, thinking tags, etc.)
+export function extractJsonFromLlmResponse(rawContent: string): any {
+  if (!rawContent || !rawContent.trim()) {
+    throw new Error('پاسخ دریافتی از مدل خالی است.');
+  }
+
+  // 1. Remove reasoning / thought blocks (<think>...</think>)
+  let cleaned = rawContent.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+  // 2. Try direct JSON.parse
+  try {
+    return JSON.parse(cleaned);
+  } catch {}
+
+  // 3. Try markdown code block extraction (```json ... ``` or ``` ... ```)
+  const codeBlockRegex = /```(?:json)?\s*([\s\S]*?)\s*```/gi;
+  let match: RegExpExecArray | null;
+  while ((match = codeBlockRegex.exec(cleaned)) !== null) {
+    const codeSnippet = match[1].trim();
+    try {
+      return JSON.parse(codeSnippet);
+    } catch {}
+  }
+
+  // 4. Try finding outermost { ... }
+  const firstBrace = cleaned.indexOf('{');
+  const lastBrace = cleaned.lastIndexOf('}');
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    try {
+      return JSON.parse(cleaned.substring(firstBrace, lastBrace + 1));
+    } catch {}
+  }
+
+  // 5. Try finding outermost [ ... ]
+  const firstBracket = cleaned.indexOf('[');
+  const lastBracket = cleaned.lastIndexOf(']');
+  if (firstBracket !== -1 && lastBracket > firstBracket) {
+    try {
+      return JSON.parse(cleaned.substring(firstBracket, lastBracket + 1));
+    } catch {}
+  }
+
+  // 6. Clean common LLM formatting issues like trailing commas or control chars
+  const relaxed = cleaned
+    .replace(/,\s*([\]}])/g, '$1')
+    .replace(/[\u0000-\u001F]+/g, ' ');
+
+  const relBrace = relaxed.indexOf('{');
+  const relLastBrace = relaxed.lastIndexOf('}');
+  if (relBrace !== -1 && relLastBrace > relBrace) {
+    try {
+      return JSON.parse(relaxed.substring(relBrace, relLastBrace + 1));
+    } catch {}
+  }
+
+  const relBracket = relaxed.indexOf('[');
+  const relLastBracket = relaxed.lastIndexOf(']');
+  if (relBracket !== -1 && relLastBracket > relBracket) {
+    try {
+      return JSON.parse(relaxed.substring(relBracket, relLastBracket + 1));
+    } catch {}
+  }
+
+  // 7. If still failing, check if it was truncated and try closing open strings & brackets
+  for (const suffix of ['}', '}}', '}]}', '"]}', '"}]}', '"]}}', '"}]}}', '"]}]}']) {
+    try {
+      if (firstBrace !== -1) {
+        return JSON.parse(cleaned.substring(firstBrace) + suffix);
+      }
+    } catch {}
+  }
+
+  console.error('[Hormouz Translate Parse Error] Raw text received from model:\n', rawContent.slice(0, 1000));
+  throw new Error('قالب پاسخ ترجمه هرمز معتبر نبود (متن JSON معتبر یافت نشد).');
+}
+
 // Hormouz AI (or OpenAI-compatible) translation runner
 async function translateWithHormouz(
   lines: Array<{ id: number; text: string; start: number; end: number; duration: number; englishWordCount: number; maxBudgetWords: number }>,
@@ -961,7 +1037,7 @@ async function translateWithHormouz(
   config: ApiRuntimeConfig,
   customPrompt?: string
 ): Promise<Array<{ id: number; farsiText: string; characterEmotion?: string; suggestedGender?: string; candidates?: any[] }>> {
-  const CHUNK_SIZE = 20;
+  const CHUNK_SIZE = 15;
   const allTranslations: Array<{ id: number; farsiText: string; characterEmotion?: string; suggestedGender?: string; candidates?: any[] }> = [];
 
   for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
@@ -987,7 +1063,7 @@ async function translateWithHormouz(
               {
                 role: 'system',
                 content:
-                  'You are an expert English-to-Persian translator for video dubbing. You MUST reply with valid JSON only adhering strictly to {"translations": [{"id": 1, "farsiText": "...", "candidates": [{"id": "candidate_1", "text": "...", "category": "faithful"}, {"id": "candidate_2", "text": "...", "category": "concise"}, {"id": "candidate_3", "text": "...", "category": "conversational"}]}]}. Never output conversational chatter or markdown fences outside the JSON.',
+                  'You are an expert English-to-Persian translator for video dubbing. You MUST reply with valid JSON only adhering strictly to: {"translations": [{"id": 1, "farsiText": "...", "characterEmotion": "طبیعی و رسا", "suggestedGender": "male"}]}. Never output conversational chatter, markdown text, or explanations outside the JSON.',
               },
               {
                 role: 'user',
@@ -995,6 +1071,7 @@ async function translateWithHormouz(
               },
             ],
             temperature: 0.3,
+            max_tokens: 4096,
           }),
           signal: AbortSignal.timeout(60000),
         });
@@ -1029,29 +1106,43 @@ async function translateWithHormouz(
       throw lastErr || new Error('پاسخی از مدل ترجمه هرمز دریافت نشد.');
     }
 
-    const rawContent = responseData.choices?.[0]?.message?.content || '';
-    let parsed: any;
-    try {
-      const cleaned = rawContent.replace(/^\`\`\`json\s*/i, '').replace(/\`\`\`\s*$/, '').trim();
-      parsed = JSON.parse(cleaned);
-    } catch {
-      const match = rawContent.match(/\{[\s\S]*\}/);
-      if (match) {
-        parsed = JSON.parse(match[0]);
-      } else {
-        throw new Error('قالب پاسخ ترجمه هرمز معتبر نبود.');
-      }
+    if (responseData?.error) {
+      const errMsg = responseData.error.message || JSON.stringify(responseData.error);
+      throw new Error(`خطای ارائه‌دهنده هرمز: ${errMsg}`);
     }
 
-    const rawList = Array.isArray(parsed?.translations)
-      ? parsed.translations
-      : Array.isArray(parsed)
-      ? parsed
-      : Array.isArray(parsed?.result)
-      ? parsed.result
-      : Array.isArray(parsed?.data)
-      ? parsed.data
-      : [];
+    const choice = responseData?.choices?.[0];
+    const rawContent = (
+      choice?.message?.content ||
+      choice?.text ||
+      (choice?.message?.reasoning_content && !choice?.message?.content ? choice?.message?.reasoning_content : '') ||
+      ''
+    ).trim();
+
+    if (!rawContent) {
+      console.error('[Hormouz Translate] Response choices content was empty:', JSON.stringify(responseData));
+      throw new Error('پاسخ دریافتی از مدل هرمز خالی بود یا ساختار نامعتبر داشت.');
+    }
+
+    const parsed = extractJsonFromLlmResponse(rawContent);
+
+    let rawList: any[] = [];
+    if (Array.isArray(parsed?.translations)) {
+      rawList = parsed.translations;
+    } else if (Array.isArray(parsed)) {
+      rawList = parsed;
+    } else if (Array.isArray(parsed?.result)) {
+      rawList = parsed.result;
+    } else if (Array.isArray(parsed?.data)) {
+      rawList = parsed.data;
+    } else if (Array.isArray(parsed?.subtitles)) {
+      rawList = parsed.subtitles;
+    } else if (Array.isArray(parsed?.lines)) {
+      rawList = parsed.lines;
+    } else if (parsed && typeof parsed === 'object') {
+      const candidate = Object.values(parsed).find(Array.isArray);
+      if (candidate) rawList = candidate as any[];
+    }
 
     if (rawList.length === 0) {
       throw new Error('آرایه ترجمه‌ها در خروجی هوش مصنوعی هرمز یافت نشد.');
@@ -1059,7 +1150,7 @@ async function translateWithHormouz(
 
     for (const item of rawList) {
       const id = Number(item.id || item.segmentId || item.lineId);
-      let farsiText = (
+      const farsiText = (
         item.farsiText ||
         item.persianText ||
         item.translation ||
@@ -1069,16 +1160,6 @@ async function translateWithHormouz(
         item.text ||
         ''
       ).trim();
-
-      // Check if text genuinely contains Persian characters
-      if (!/[\u0600-\u06FF]/.test(farsiText)) {
-        console.warn(`[Hormouz Translate] Line ${id} had no Persian script ("${farsiText}"). Auto-recovering Persian translation...`);
-        const originalLine = chunk.find((c) => c.id === id);
-        if (originalLine) {
-          const rec = await translateSingleSentence(originalLine.text, style);
-          if (rec) farsiText = rec;
-        }
-      }
 
       const origText = chunk.find((c) => c.id === id)?.text || '';
       const candidates =
@@ -1653,59 +1734,30 @@ app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
         provider: 'hormouz',
       });
     } catch (hErr: any) {
-      console.warn(`[Translate] Hormouz error (${hErr?.message}). Falling back to high-accuracy Persian translation engine...`);
-      try {
-        const fallbackTranslations = await translateWithFallbackEngine(simpleLines, style);
-        const enriched = evaluateAndEnrichTranslations(fallbackTranslations, simpleLines);
-        return res.json({
-          success: true,
-          translations: enriched,
-          notice: `توجه: اتصال به سرور هرمز برقرار نشد (${hErr?.message})؛ ترجمه خطوط با موتور پرسرعت جایگزین به زبان فارسی انجام گرفت.`,
-          provider: 'fallback',
-        });
-      } catch (fbErr: any) {
-        return res.status(500).json({
-          success: false,
-          error: hErr?.message || fbErr?.message || 'خطا در ارتباط با سرویس ترجمه هرمز',
-        });
-      }
+      console.error(`[Translate] Hormouz error:`, hErr?.message || hErr);
+      return res.status(500).json({
+        success: false,
+        error: `خطا در اتصال یا ترجمه با سرور هرمز: ${hErr?.message || 'خطای سرور هرمز'}`,
+      });
     }
   }
 
-  // Branch B: If no API key is provided, use high-accuracy automated Persian translation engine
+  // Branch B: If no API key is provided, do NOT translate with free fallback engine
   if (!config.hasKey) {
-    console.log('[Translate] No API key detected. Activating high-accuracy Persian translation engine...');
-    try {
-      const fallbackTranslations = await translateWithFallbackEngine(simpleLines, style);
-      const enriched = evaluateAndEnrichTranslations(fallbackTranslations, simpleLines);
-      return res.json({
-        success: true,
-        translations: enriched,
-        notice: 'ترجمه به زبان فارسی با موتور خودکار با موفقیت انجام شد. (برای استفاده از مدل OpenAI: GPT-6 Luna می‌توانید کلید هرمز را در بخش تنظیمات وارد کنید)',
-        provider: 'fallback',
-      });
-    } catch (fbErr: any) {
-      return res.status(500).json({ success: false, error: fbErr?.message || 'خطا در ترجمه خطوط' });
-    }
+    return res.status(400).json({
+      success: false,
+      error: 'کلید API وارد نشده است. برای ترجمه ابری با مدل‌های هوش مصنوعی لطفاً ابتدا کلید API خود را در بخش تنظیمات وارد نمایید، یا در صورت تمایل تب «مدل داخلی و آفلاین» را انتخاب کنید.',
+    });
   }
 
   let ai: GoogleGenAI | null = null;
   try {
     ai = getGenAIClient(config.apiKey);
   } catch (keyErr) {
-    console.warn('[Translate] API key not available or invalid. Activating high-accuracy Persian translation engine...');
-    try {
-      const fallbackTranslations = await translateWithFallbackEngine(simpleLines, style);
-      const enriched = evaluateAndEnrichTranslations(fallbackTranslations, simpleLines);
-      return res.json({
-        success: true,
-        translations: enriched,
-        notice: 'ترجمه به زبان فارسی با موتور خودکار با موفقیت انجام شد.',
-        provider: 'fallback',
-      });
-    } catch (fbErr: any) {
-      return res.status(500).json({ success: false, error: fbErr?.message || 'خطا در ترجمه خطوط' });
-    }
+    return res.status(401).json({
+      success: false,
+      error: 'کلید Google Gemini نامعتبر است یا در فرمت صحیح نیست. لطفاً کلید معتبر خود را در تنظیمات وارد نمایید.',
+    });
   }
 
   try {
@@ -1794,19 +1846,7 @@ app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
       provider: 'gemini',
     });
   } catch (error: any) {
-    console.warn(`[Translate] Gemini models encountered issue (${error?.message}). Falling back to high-accuracy Persian translation engine...`);
-    try {
-      const fallbackTranslations = await translateWithFallbackEngine(simpleLines, style);
-      const enriched = evaluateAndEnrichTranslations(fallbackTranslations, simpleLines);
-      return res.json({
-        success: true,
-        translations: enriched,
-        notice: `توجه: سرور جمینای با خطا مواجه شد (${error?.message})؛ ترجمه خطوط با موتور پرسرعت جایگزین به زبان فارسی انجام گرفت.`,
-        provider: 'fallback',
-      });
-    } catch (fbErr) {
-      console.error('Fallback translation also failed:', fbErr);
-    }
+    console.error(`[Translate] Gemini translation error:`, error?.message || error);
 
     const isAuth = isAuthenticationError(error);
     const isHighDemand = isHighDemandError(error);
@@ -2749,7 +2789,9 @@ async function startServer() {
   });
 }
 
-startServer().catch((err) => {
-  console.error('Server startup failed:', err);
-  process.exit(1);
-});
+if (!process.argv.some((arg) => arg.includes('.test.'))) {
+  startServer().catch((err) => {
+    console.error('Server startup failed:', err);
+    process.exit(1);
+  });
+}

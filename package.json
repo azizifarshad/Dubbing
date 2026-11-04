@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test": "tsx tests/syncEngine.test.ts && tsx tests/balancedDubbingSystem.test.ts && tsx tests/overlapAndBulkSpeed.test.ts && tsx tests/autoFixTimeline.test.ts && tsx tests/zeroSilenceAndFlexiblePlacement.test.ts"
+    "test": "tsx tests/syncEngine.test.ts && tsx tests/balancedDubbingSystem.test.ts && tsx tests/overlapAndBulkSpeed.test.ts && tsx tests/autoFixTimeline.test.ts && tsx tests/zeroSilenceAndFlexiblePlacement.test.ts && tsx tests/hormouzJsonExtractor.test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.4.0",

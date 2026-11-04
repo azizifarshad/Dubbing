@@ -566,7 +566,7 @@ const effectiveModel =
             <div className="flex items-center gap-2">
               <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
               <span>
-                کلید API وارد نشده است؛ سیستم به صورت خودکار با <strong>موتور پرسرعت فارسی</strong> ترجمه را انجام می‌دهد. برای استفاده اختصاصی از مدل <strong>{effectiveModel}</strong>، لطفاً کلید API هرمز را تنظیم نمایید.
+                کلید API وارد نشده است. برای ترجمه با مدل <strong>{effectiveModel}</strong> لطفاً کلید API را در بخش تنظیمات وارد نمایید، یا در صورت تمایل تب «مدل داخلی و آفلاین» را انتخاب کنید.
               </span>
             </div>
             {onOpenApiKeyModal && (
@@ -677,23 +677,39 @@ const effectiveModel =
 
 
       {translationError && (
-        <div className="mb-6 p-4 rounded-2xl bg-[#064e3b]/30 border border-[#099767]/50 text-emerald-200 text-xs shadow-lg">
-          <div className="flex items-center gap-2 font-bold text-[#34d399] mb-1.5">
-            <AlertCircle className="w-4 h-4 text-[#34d399] shrink-0" />
-            <span>{translationError}</span>
+        <div className="mb-6 p-4 rounded-2xl bg-rose-950/40 border border-rose-500/40 text-rose-200 text-xs shadow-lg">
+          <div className="flex items-start justify-between gap-2 mb-2">
+            <div className="flex items-center gap-2 font-bold text-rose-300">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{translationError}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTranslationError(null)}
+              className="text-rose-400 hover:text-rose-200 p-1 rounded-lg transition"
+              title="بستن پیام خطا"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
-          <p className="text-slate-300 leading-relaxed mb-3">
-            اگر خطای ۵۰۳ ناشی از ترافیک موقت سرورهای گوگل است، با کلیک مجدد روی دکمه زیر ترجمه بلافاصله با مدل‌های جایگزین Flash و Flash-Lite انجام می‌شود:
-          </p>
+          {translationError.includes('۵۰۳') || translationError.toLowerCase().includes('503') ? (
+            <p className="text-slate-300 leading-relaxed mb-3">
+              خطای ۵۰۳ ناشی از ترافیک موقت سرورهای هوش مصنوعی است. با کلیک روی دکمه زیر می‌توانید چند لحظه بعد مجدداً تلاش کنید:
+            </p>
+          ) : (
+            <p className="text-slate-300 leading-relaxed mb-3">
+              ترجمه خطوط به دلیل خطا انجام نشد و متن دیالوگ‌ها دست‌نخورده باقی ماند. پس از بررسی تنظیمات کلید یا رفع مشکل، می‌توانید مجدداً تلاش کنید:
+            </p>
+          )}
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
               onClick={handleTranslateAll}
               disabled={isTranslating}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#099767] hover:bg-[#0ba873] text-white font-bold transition text-xs shadow"
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold transition text-xs shadow"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isTranslating ? 'animate-spin' : ''}`} />
-              <span>تلاش مجدد ترجمه دیالوگ‌ها با جمینای</span>
+              <span>تلاش مجدد برای ترجمه دیالوگ‌ها</span>
             </button>
             {onOpenApiKeyModal && (
               <button
