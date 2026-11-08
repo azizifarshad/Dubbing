@@ -18,8 +18,7 @@ import { PRODUCT_NAME } from './src/utils/licenseConfig.ts';
 
 dotenv.config();
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const appDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -2563,7 +2562,7 @@ app.post(
       if (!muxSuccess || !fs.existsSync(tempOutputPath)) {
         console.log('[Python Branding Muxer] Running python mux_video.py...');
         const pyArgs = [
-          path.join(__dirname, 'mux_video.py'),
+          path.join(appDir, 'mux_video.py'),
           '--video', tempVideoPath,
           '--audio', tempAudioPath,
           '--output', tempOutputPath,
@@ -2573,7 +2572,7 @@ app.post(
         if (!includeLogo) pyArgs.push('--no-logo');
 
         await new Promise<void>((resolve, reject) => {
-          const pyProc = spawn('python', pyArgs, { cwd: __dirname });
+          const pyProc = spawn('python', pyArgs, { cwd: appDir });
           let stdout = '';
           let stderr = '';
           pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
@@ -2880,21 +2879,31 @@ STRICT CONSTRAINTS & RULES:
 
 // Start server with Vite middleware in development or static serve in production
 async function startServer() {
-  const isProd = process.env.NODE_ENV === 'production';
+  const distPath = path.resolve(appDir, 'dist');
+  const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
+  const isProd = process.env.NODE_ENV === 'production' || hasDist;
 
-  if (!isProd) {
-    const { createServer: createViteServer } = await import('vite');
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.resolve(__dirname, 'dist');
+  if (isProd) {
     app.use(express.static(distPath));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
+  } else {
+    try {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } catch {
+      if (hasDist) {
+        app.use(express.static(distPath));
+        app.get('*', (_req, res) => {
+          res.sendFile(path.resolve(distPath, 'index.html'));
+        });
+      }
+    }
   }
 
   app.listen(PORT, '0.0.0.0', () => {

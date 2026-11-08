@@ -65,7 +65,9 @@ Source: "..\models\*"; DestDir: "{app}\models"; Flags: ignoreversion recursesubd
 Source: "..\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Backend and scripts
+Source: "..\server.cjs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\server.ts"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\launcher.cs"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\local_whisper.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\mux_video.py"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\package.json"; DestDir: "{app}"; Flags: ignoreversion

@@ -39,10 +39,22 @@ try {
 # 2. Check Node.js and Python prerequisites
 Write-Host "[2/4] بررسی پیش‌نیازهای سیستمی (Node.js و Python)..." -ForegroundColor Yellow
 $nodeCmd = Get-Command node -ErrorAction SilentlyContinue
+if (-not $nodeCmd -and (Test-Path "C:\Program Files\nodejs\node.exe")) {
+    $nodeCmd = [PSCustomObject]@{ Source = "C:\Program Files\nodejs\node.exe" }
+}
+
 if ($nodeCmd) {
     Write-Host "  -> Node.js یافت شد: $($nodeCmd.Source)" -ForegroundColor Green
 } else {
-    Write-Host "  -> [هشدار] مفسر Node.js یافت نشد. لطفاً Node.js را نصب کنید." -ForegroundColor Red
+    Write-Host "  -> مفسر Node.js یافت نشد. در حال نصب خودکار از طریق winget..." -ForegroundColor Cyan
+    try {
+        winget install OpenJS.NodeJS.LTS --accept-package-agreements --accept-source-agreements --silent
+        if (Test-Path "C:\Program Files\nodejs\node.exe") {
+            Write-Host "  -> Node.js با موفقیت به صورت خودکار نصب شد." -ForegroundColor Green
+        }
+    } catch {
+        Write-Host "  -> نصب خودکار نیازمند دسترسی اینترنت است." -ForegroundColor DarkYellow
+    }
 }
 
 $pythonCmd = Get-Command python -ErrorAction SilentlyContinue
