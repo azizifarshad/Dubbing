@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Dubbing-Gholam Permanent Offline License Generator (GUI Application)
+Dubbing Vidans Permanent Offline License Generator (GUI Application)
 Designed exclusively for the Software Owner.
 """
 
@@ -19,10 +19,25 @@ from license_engine import (
 class LicenseGeneratorApp:
     def __init__(self, root):
         self.root = root
-        self.root.title(f"{PRODUCT_NAME} — Permanent License Generator (Owner Tool)")
-        self.root.geometry("740x680")
-        self.root.minsize(700, 640)
+        self.root.title(f"{PRODUCT_NAME} — ابزار صدور لایسنس دائمی (ابزار مالک نرم‌افزار)")
+        self.root.geometry("760x700")
+        self.root.minsize(720, 660)
         self.root.configure(bg="#0f172a") # Slate 900
+
+        # Try setting window icon if available
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        ico_candidates = [
+            os.path.join(base_dir, "Vidans.ico"),
+            os.path.join(base_dir, "..", "..", "public", "Vidans.ico"),
+            os.path.join(base_dir, "..", "..", "assets", "Vidans.ico"),
+        ]
+        for icon_path in ico_candidates:
+            if os.path.exists(icon_path):
+                try:
+                    self.root.iconbitmap(icon_path)
+                    break
+                except Exception:
+                    pass
 
         self.current_req_data = None
         self.current_req_path = None
@@ -30,10 +45,10 @@ class LicenseGeneratorApp:
         # Ensure master key is loaded or generated
         try:
             self.priv_key, self.pub_key = load_or_generate_master_keys()
-            self.key_status = "Master Key Pair Active (Ed25519)"
+            self.key_status = "کلید اصلی امضا فعال است (Ed25519 Master Authority Key Active)"
             self.key_status_color = "#34d399" # Emerald
         except Exception as e:
-            self.key_status = f"Key Error: {str(e)}"
+            self.key_status = f"خطا در بارگذاری کلید: {str(e)}"
             self.key_status_color = "#f87171" # Rose
 
         self.setup_styles()
@@ -79,7 +94,7 @@ class LicenseGeneratorApp:
         header_frame = ttk.Frame(main_frame)
         header_frame.pack(fill="x", pady=(0, 15))
 
-        title = ttk.Label(header_frame, text=f"🔑 {PRODUCT_NAME} — ابزار صدور لایسنس دائمی آفلاین", style="Header.TLabel")
+        title = ttk.Label(header_frame, text=f" {PRODUCT_NAME} — ابزار صدور لایسنس دائمی آفلاین", style="Header.TLabel")
         title.pack(anchor="w")
 
         subtitle = ttk.Label(
@@ -90,11 +105,11 @@ class LicenseGeneratorApp:
         )
         subtitle.pack(anchor="w", pady=(3, 0))
 
-        # --- Card 1: Load Activation Request ---
+        # Activation request panel
         req_card = ttk.Frame(main_frame, style="Card.TFrame", padding=15)
         req_card.pack(fill="x", pady=(0, 12))
 
-        req_title = ttk.Label(req_card, text="۱. دریافت و بررسی فایل درخواست فعال‌سازی (.dbreq)", style="SubHeader.TLabel")
+        req_title = ttk.Label(req_card, text="۱. دریافت و بررسی فایل درخواست فعال‌سازی مشتری (.vidansreq)", style="SubHeader.TLabel")
         req_title.pack(anchor="w", pady=(0, 8))
 
         btn_row = ttk.Frame(req_card, style="Card.TFrame")
@@ -102,7 +117,7 @@ class LicenseGeneratorApp:
 
         self.btn_load_req = ttk.Button(
             btn_row,
-            text="📁 انتخاب فایل درخواست مشتری (.dbreq)...",
+            text=" انتخاب فایل درخواست مشتری (.vidansreq)...",
             style="Secondary.TButton",
             command=self.load_request_file
         )
@@ -111,7 +126,7 @@ class LicenseGeneratorApp:
         self.lbl_file_path = ttk.Label(btn_row, text="هیچ فایلی انتخاب نشده است", style="CardLabel.TLabel", foreground="#94a3b8")
         self.lbl_file_path.pack(side="left", padx=12)
 
-        # Device Info Grid inside Card 1
+        # Hardware info fields
         info_grid = ttk.Frame(req_card, style="Card.TFrame")
         info_grid.pack(fill="x", pady=4)
 
@@ -135,7 +150,7 @@ class LicenseGeneratorApp:
         self.lbl_req_status = ttk.Label(info_grid, text="در انتظار فایل درخواست...", style="CardLabel.TLabel", foreground="#94a3b8")
         self.lbl_req_status.grid(row=4, column=1, sticky="w", pady=2)
 
-        # --- Card 2: Customer License Configuration ---
+        # Customer configuration
         lic_card = ttk.Frame(main_frame, style="Card.TFrame", padding=15)
         lic_card.pack(fill="x", pady=(0, 12))
 
@@ -161,36 +176,36 @@ class LicenseGeneratorApp:
         self.entry_customer.pack(side="left", fill="x", expand=True)
         self.entry_customer.insert(0, "مشتری گرامی")
 
-        # License Type & Policy Info
+        # License type info
         policy_row = ttk.Frame(lic_card, style="Card.TFrame")
         policy_row.pack(fill="x", pady=(8, 0))
 
         policy_text = (
-            "• نوع لایسنس: دائمی، بدون انقضا، قابل استفاده برای تمامی کاربران این کامپیوتر\n"
+            "• نوع لایسنس: دائمی، بدون تاریخ انقضا، قابل استفاده برای تمامی کاربران این کامپیوتر\n"
             "• اتصال به سخت‌افزار: قفل شده با کلید اختصاصی دستگاه و اثر انگشت سخت‌افزاری\n"
             "• دسترسی آفلاین: ۱۰۰٪ بدون نیاز به اینترنت، سرور یا اشتراک دوره‌ای"
         )
         lbl_policy = ttk.Label(policy_row, text=policy_text, style="CardLabel.TLabel", foreground="#94a3b8", justify="left")
         lbl_policy.pack(anchor="w")
 
-        # --- Card 3: Action Buttons & Generation ---
+        # Action buttons
         action_frame = ttk.Frame(main_frame)
         action_frame.pack(fill="x", pady=(10, 0))
 
         self.btn_generate = ttk.Button(
             action_frame,
-            text="✨ صدور و ذخیره فایل لایسنس امضاشده (.dblic)",
+            text=" صدور و ذخیره فایل لایسنس امضاشده (.vidanslic)",
             style="Accent.TButton",
             command=self.generate_and_save_license
         )
         self.btn_generate.pack(fill="x", ipady=4)
 
-        # Output / Log Message Box
+        # Status message box
         self.lbl_result = ttk.Label(
             main_frame,
-            text="راهنما: فایل درخواست (.dbreq) ارسال‌شده توسط مشتری را انتخاب نمایید، سپس دکمه صدور لایسنس را بزنید.",
+            text="راهنما: فایل درخواست (.vidansreq) ارسال‌شده توسط مشتری را انتخاب نمایید، سپس دکمه صدور لایسنس را بزنید.",
             foreground="#94a3b8",
-            wraplength=660,
+            wraplength=680,
             justify="center"
         )
         self.lbl_result.pack(pady=(12, 0))
@@ -198,7 +213,11 @@ class LicenseGeneratorApp:
     def load_request_file(self):
         file_path = filedialog.askopenfilename(
             title="انتخاب فایل درخواست فعال‌سازی",
-            filetypes=[("Dubbing-Gholam Request", "*.dbreq"), ("JSON files", "*.json"), ("All Files", "*.*")]
+            filetypes=[
+                ("Vidans Request (*.vidansreq;*.dbreq)", "*.vidansreq;*.dbreq"),
+                ("All Requests", "*.vidansreq;*.dbreq;*.json"),
+                ("All Files", "*.*")
+            ]
         )
         if not file_path:
             return
@@ -210,7 +229,7 @@ class LicenseGeneratorApp:
             res = verify_activation_request(data)
             if not res["valid"]:
                 messagebox.showerror("خطا در درخواست", f"فایل درخواست معتبر نیست:\n{res['error']}")
-                self.lbl_req_status.config(text=f"❌ نامعتبر: {res['error']}", foreground="#f87171")
+                self.lbl_req_status.config(text=f" نامعتبر: {res['error']}", foreground="#f87171")
                 return
 
             self.current_req_data = res["details"]
@@ -221,7 +240,7 @@ class LicenseGeneratorApp:
             self.lbl_os.config(text=self.current_req_data.get("osName", "—"))
             self.lbl_cpu.config(text=self.current_req_data.get("cpuModel", "—"))
             self.lbl_fingerprint.config(text=self.current_req_data.get("hardwareFingerprint", "—"))
-            self.lbl_req_status.config(text="✓ امضای دیجیتال دستگاه مشتری تایید شد (معتبر)", foreground="#34d399")
+            self.lbl_req_status.config(text=" امضای دیجیتال دستگاه مشتری تایید شد (معتبر)", foreground="#34d399")
 
             # Suggest customer name if empty or default
             suggested = self.current_req_data.get("computerName", "Customer")
@@ -238,21 +257,25 @@ class LicenseGeneratorApp:
 
     def generate_and_save_license(self):
         if not self.current_req_data:
-            messagebox.showwarning("درخواست یافت نشد", "لطفاً ابتدا فایل درخواست مشتری (.dbreq) را بارگذاری نمایید.")
+            messagebox.showwarning("درخواست یافت نشد", "لطفاً ابتدا فایل درخواست مشتری (.vidansreq) را بارگذاری نمایید.")
             return
 
         customer_name = self.entry_customer.get().strip()
         if not customer_name:
             customer_name = "Valued Customer"
 
-        # Prompt destination to save .dblic
+        # Prompt destination to save .vidanslic
         clean_name = "".join(c for c in customer_name if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
-        default_filename = f"DubbingGholam_License_{clean_name}.dblic"
+        default_filename = f"DubbingVidans_License_{clean_name}.vidanslic"
 
         save_path = filedialog.asksaveasfilename(
             title="ذخیره فایل لایسنس امضاشده",
             initialfile=default_filename,
-            filetypes=[("Dubbing-Gholam License", "*.dblic"), ("JSON files", "*.json"), ("All Files", "*.*")]
+            filetypes=[
+                ("Vidans License (*.vidanslic)", "*.vidanslic"),
+                ("Legacy DB License (*.dblic)", "*.dblic"),
+                ("All Files", "*.*")
+            ]
         )
         if not save_path:
             return
@@ -261,7 +284,8 @@ class LicenseGeneratorApp:
             signed_lic = generate_signed_license(
                 customer_name=customer_name,
                 hardware_fingerprint=self.current_req_data["hardwareFingerprint"],
-                device_public_key_pem=self.current_req_data["devicePublicKey"]
+                device_public_key_pem=self.current_req_data["devicePublicKey"],
+                product_name=self.current_req_data.get("product", PRODUCT_NAME)
             )
 
             with open(save_path, "w", encoding="utf-8") as f:
@@ -273,7 +297,7 @@ class LicenseGeneratorApp:
                 f"اکنون می‌توانید این فایل را برای مشتری ارسال نمایید تا در برنامه وارد نماید."
             )
             messagebox.showinfo("صدور موفق لایسنس", msg)
-            self.lbl_result.config(text=f"✓ لایسنس با موفقیت صادر شد: {os.path.basename(save_path)}", foreground="#34d399")
+            self.lbl_result.config(text=f" لایسنس با موفقیت صادر شد: {os.path.basename(save_path)}", foreground="#34d399")
 
         except Exception as e:
             messagebox.showerror("خطا در صدور لایسنس", f"عملیات صدور با خطا مواجه شد:\n{str(e)}")

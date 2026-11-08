@@ -63,9 +63,7 @@ function runTest(name: string, fn: () => void) {
 
 console.log('--- Starting Audio-Video Synchronization Engine Test Suite ---\n');
 
-// =========================================================================
 // Scenario 1: Target duration 2.0s, generated audio 2.0s -> no stretch (1.0x)
-// =========================================================================
 runTest('Target 2.0s, Audio 2.0s -> exact match, no stretch (ratio ~1.0, synchronized)', () => {
   const result = evaluateSynchronization(2.0, 2.0);
   assert.strictEqual(result.syncStatus, 'synchronized');
@@ -76,9 +74,7 @@ runTest('Target 2.0s, Audio 2.0s -> exact match, no stretch (ratio ~1.0, synchro
   assert.strictEqual(result.syncConfidence >= 0.95, true);
 });
 
-// =========================================================================
 // Scenario 2: Target duration 2.0s, generated audio 2.2s -> moderate stretch
-// =========================================================================
 runTest('Target 2.0s, Audio 2.2s -> moderate stretch (ratio 1.10, action: moderate_stretch)', () => {
   const result = evaluateSynchronization(2.0, 2.2);
   assert.strictEqual(result.syncStatus, 'synchronized');
@@ -89,9 +85,7 @@ runTest('Target 2.0s, Audio 2.2s -> moderate stretch (ratio 1.10, action: modera
   assert.strictEqual(result.syncConfidence >= 0.85, true);
 });
 
-// =========================================================================
 // Scenario 3: Target duration 2.0s, generated audio 3.5s -> adaptation requested
-// =========================================================================
 runTest('Target 2.0s, Audio 3.5s -> severe mismatch (ratio 1.75, manual_review/severe warning)', () => {
   const result = evaluateSynchronization(2.0, 3.5);
   // Ratio 1.75 exceeds maxStretchRatio (1.25) -> requires text adaptation or manual review
@@ -103,9 +97,7 @@ runTest('Target 2.0s, Audio 3.5s -> severe mismatch (ratio 1.75, manual_review/s
   assert.strictEqual(result.qualityWarnings[0].code, 'SEVERE_DURATION_OVERFLOW');
 });
 
-// =========================================================================
 // Scenario 4: Two independent speakers speaking simultaneously -> intentional overlap preserved
-// =========================================================================
 runTest('Two independent speakers speaking simultaneously -> intentional overlap preserved', () => {
   const subs: SubtitleItem[] = [
     {
@@ -152,9 +144,7 @@ runTest('Two independent speakers speaking simultaneously -> intentional overlap
   assert.strictEqual(subs[1].start, 12.0);
 });
 
-// =========================================================================
 // Scenario 5: Consecutive dialogues with 0.1s gap -> gap preserved, no clipping
-// =========================================================================
 runTest('Consecutive dialogues with 0.1s gap -> gap preserved, no clipping', () => {
   const subs: SubtitleItem[] = [
     {
@@ -192,9 +182,7 @@ runTest('Consecutive dialogues with 0.1s gap -> gap preserved, no clipping', () 
   assert.ok(Math.abs(gap - 0.1) < 0.001);
 });
 
-// =========================================================================
 // Scenario 6: Audio with 0.4s leading silence -> leading silence trimmed, effective duration used
-// =========================================================================
 runTest('Generated audio with 0.4s leading silence -> leading silence trimmed, effective duration used', () => {
   const sampleRate = 44100;
   const mockAudio = createSyntheticAudioWithSilence(
@@ -223,9 +211,7 @@ runTest('Generated audio with 0.4s leading silence -> leading silence trimmed, e
   assert.strictEqual(evalEffective.timeStretchRatio, 1.0);
 });
 
-// =========================================================================
 // Scenario 7: Subtitle tracks with mixed sample rates -> normalized before mixing
-// =========================================================================
 runTest('Audio tracks with mixed sample rates (24kHz TTS vs 48kHz Video) -> sample rate normalized', () => {
   const ttsSampleRate = 24000;
   const masterSampleRate = 48000;
@@ -241,9 +227,7 @@ runTest('Audio tracks with mixed sample rates (24kHz TTS vs 48kHz Video) -> samp
   assert.ok(targetSampleRate === 48000);
 });
 
-// =========================================================================
 // Scenario 8: Single dialogue regeneration without corrupting other tracks
-// =========================================================================
 runTest('Regeneration of a single dialogue -> other dialogue tracks unaffected', () => {
   const initialSubtitles: SubtitleItem[] = [
     {
@@ -318,9 +302,7 @@ runTest('Regeneration of a single dialogue -> other dialogue tracks unaffected',
   assert.strictEqual(updatedSubtitles[1].syncStatus, 'synchronized');
 });
 
-// =========================================================================
 // Scenario 9: Dialogue < 1s (e.g. 0.4s) -> preserved without artificial 1s padding
-// =========================================================================
 runTest('Short dialogue (< 1.0s, e.g. 0.4s) -> preserved without artificial 1.0s minimum padding', () => {
   const shortSub: SubtitleItem = {
     id: 1,
@@ -347,9 +329,7 @@ runTest('Short dialogue (< 1.0s, e.g. 0.4s) -> preserved without artificial 1.0s
   assert.strictEqual(evalShort.timeStretchRatio, 1.0);
 });
 
-// =========================================================================
 // Scenario 10: Audio overflowing after adaptation -> flagged for review, never shifted silently
-// =========================================================================
 runTest('Overflow dialogue after adaptation -> flagged for review, never shifted silently on timeline', () => {
   // Scenario: target duration 1.5s, audio duration 2.6s (73% overflow)
   const targetDuration = 1.5;

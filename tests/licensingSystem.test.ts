@@ -10,16 +10,17 @@ import {
   buildCanonicalLicenseString
 } from '../src/utils/licenseManager';
 import {
+  PRODUCT_NAME,
   SignedLicenseFile,
   MASTER_AUTHORITY_PUBLIC_KEY_PEM
 } from '../src/utils/licenseConfig';
 import { getSharedDataDir, getHardwareInfo } from '../src/utils/hardwareIdentity';
 
-console.log('=== Starting Dubbing-Gholam Offline Licensing Test Suite ===');
+console.log('=== Starting Dubbing Vidans Offline Licensing Test Suite ===');
 
 // Test 1: Generate valid activation request
 const req = generateActivationRequest();
-assert.strictEqual(req.product, 'Dubbing-Gholam');
+assert.strictEqual(req.product, 'Dubbing Vidans');
 assert.ok(req.hardwareFingerprint.length === 64, 'Fingerprint must be 64-char SHA256 hex');
 assert.ok(req.devicePublicKey.includes('BEGIN PUBLIC KEY'), 'Must have valid PEM public key');
 assert.ok(req.deviceSignature.length > 20, 'Device signature must be non-empty base64');
@@ -32,12 +33,13 @@ const ownerPrivKey = crypto.createPrivateKey(privPem);
 
 const testPayload = {
   version: 1,
-  product: 'Dubbing-Gholam',
+  product: 'Dubbing Vidans',
   licenseId: 'test-lic-uuid-001',
   customerName: 'تست مشتری - استودیو دوبلاژ',
   hardwareFingerprint: req.hardwareFingerprint,
   devicePublicKey: req.devicePublicKey,
   licenseType: 'permanent' as const,
+  isPermanent: true,
   issuedAt: new Date().toISOString(),
   features: ['offline_stt', 'offline_translation', 'offline_tts', 'offline_muxing', 'unlimited_export'],
 };

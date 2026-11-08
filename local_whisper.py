@@ -11,22 +11,21 @@ def transcribe(audio_path, model_size="base"):
             print(json.dumps({"success": False, "error": f"فایل صوتی یافت نشد: {audio_path}"}))
             return
 
-        # Read audio using soundfile (compatible with any wav format)
+        # Read audio file
         data, samplerate = sf.read(audio_path)
         
-        # Convert stereo to mono if needed
+        # Convert stereo to mono
         if len(data.shape) > 1:
             data = data.mean(axis=1)
 
-        # Ensure float32 format
         data = data.astype(np.float32)
 
-        # Normalize amplitude if needed
+        # Normalize amplitude
         max_val = np.max(np.abs(data))
         if max_val > 0:
             data = data / max_val
 
-        # Device selection: GPU CUDA (float16) or CPU (int8)
+        # Use CUDA if available, fallback to CPU
         device = "cpu"
         compute_type = "int8"
         try:
@@ -37,30 +36,26 @@ def transcribe(audio_path, model_size="base"):
         except Exception:
             pass
 
-        # Resolve offline local model path
-        model_path = model_size
-        local_candidates = [
-            os.environ.get("WHISPER_MODEL_PATH"),
-            os.path.join(os.path.dirname(__file__), "models", f"faster-whisper-{model_size}"),
-            os.path.join(os.environ.get("ProgramData", "C:\\ProgramData"), "DubbingGholam", "models", f"faster-whisper-{model_size}"),
+        # Check for bundled local models
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        candidate_paths = [
+            os.path.join(base_dir, "models", f"faster-whisper-{model_size}"),
+            os.path.join(base_dir, "models", model_size),
+            os.path.join(base_dir, "..", "models", f"faster-whisper-{model_size}"),
+            os.path.join(os.getcwd(), "models", f"faster-whisper-{model_size}"),
         ]
-        try:
-            import glob
-            cache_snapshots = glob.glob(os.path.expanduser(f"~/.cache/huggingface/hub/models--Systran--faster-whisper-{model_size}/snapshots/*"))
-            if cache_snapshots:
-                local_candidates.append(cache_snapshots[0])
-        except Exception:
-            pass
-
-        for cand in local_candidates:
-            if cand and os.path.exists(cand) and (os.path.exists(os.path.join(cand, "model.bin")) or os.path.exists(os.path.join(cand, "model.safetensors"))):
-                model_path = cand
+        resolved_model = model_size
+        local_files_only = False
+        for cpath in candidate_paths:
+            if os.path.isdir(cpath) and os.path.exists(os.path.join(cpath, "model.bin")):
+                resolved_model = cpath
+                local_files_only = True
                 break
 
-        # Load Whisper model with word-level forced alignment (100% offline, local_files_only)
-        model = WhisperModel(model_path, device=device, compute_type=compute_type, local_files_only=True)
+        # Load whisper model
+        model = WhisperModel(resolved_model, device=device, compute_type=compute_type, local_files_only=local_files_only)
         
-        # Transcribe with physical word-level timestamps & VAD speech segmentation
+        # Transcribe with word timestamps and VAD
         segments, info = model.transcribe(
             data,
             language="en",
@@ -76,7 +71,7 @@ def transcribe(audio_path, model_size="base"):
         last_seg_end = 0.0
 
         for segment in segments:
-            # Detect speaker change heuristics from long pauses (> 1.2s)
+            # Switch speaker on long pauses
             if idx > 1 and (segment.start - last_seg_end) > 1.2:
                 speaker_idx = (speaker_idx % 2) + 1
 
@@ -90,7 +85,6 @@ def transcribe(audio_path, model_size="base"):
                         "score": round(w.probability, 3) if hasattr(w, 'probability') else 1.0
                     })
 
-            # Exact speech start and end timestamps (never artificially bloated to 1s)
             seg_start = round(segment.start, 2)
             seg_end = round(segment.end, 2)
             seg_dur = round(max(0.1, seg_end - seg_start), 2)

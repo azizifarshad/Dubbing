@@ -27,25 +27,28 @@ export interface DeviceIdentity {
 
 export function getSharedDataDir(): string {
   const base = process.env.ProgramData || 'C:\\ProgramData';
-  const targetDir = path.join(base, 'DubbingGholam');
-  if (!fs.existsSync(targetDir)) {
-    try {
-      fs.mkdirSync(targetDir, { recursive: true });
-    } catch (err) {
-      // Fallback to local app directory if ProgramData is restricted in test environments
-      const localFallback = path.join(process.cwd(), '.license_data');
-      if (!fs.existsSync(localFallback)) {
-        fs.mkdirSync(localFallback, { recursive: true });
-      }
-      return localFallback;
-    }
+  const targetDir = path.join(base, 'DubbingVidans');
+
+  if (fs.existsSync(targetDir)) {
+    return targetDir;
   }
-  return targetDir;
+
+  try {
+    fs.mkdirSync(targetDir, { recursive: true });
+    return targetDir;
+  } catch (err) {
+    // Fallback to local directory if ProgramData is inaccessible
+    const localFallback = path.join(process.cwd(), '.license_data');
+    if (!fs.existsSync(localFallback)) {
+      try {
+        fs.mkdirSync(localFallback, { recursive: true });
+      } catch {}
+    }
+    return localFallback;
+  }
 }
 
-/**
- * Execute a safe PowerShell or command line command with fallback
- */
+// Helper to run a shell command safely
 function runCommand(cmd: string, timeoutMs: number = 4000): string {
   try {
     return execSync(cmd, { encoding: 'utf8', timeout: timeoutMs, stdio: ['ignore', 'pipe', 'ignore'] }).trim();
@@ -54,9 +57,7 @@ function runCommand(cmd: string, timeoutMs: number = 4000): string {
   }
 }
 
-/**
- * Read the persistent Windows MachineGuid from the registry
- */
+// Get Windows MachineGuid from registry
 function getMachineGuid(): string {
   try {
     const raw = runCommand('reg query HKLM\\SOFTWARE\\Microsoft\\Cryptography /v MachineGuid');
@@ -70,9 +71,7 @@ function getMachineGuid(): string {
 
 let cachedHardwareInfo: HardwareInfo | null = null;
 
-/**
- * Query persistent motherboard, CPU, and disk hardware properties via CIM / WMI
- */
+// Collect hardware properties via CIM / PowerShell
 export function getHardwareInfo(forceRefresh: boolean = false): HardwareInfo {
   if (cachedHardwareInfo && !forceRefresh) {
     return cachedHardwareInfo;
@@ -80,7 +79,7 @@ export function getHardwareInfo(forceRefresh: boolean = false): HardwareInfo {
 
   const machineGuid = getMachineGuid();
 
-  // Query CIM properties in one efficient PowerShell call
+  // Query hardware specs in a single PowerShell command
   const psScript = `
     $ErrorActionPreference = 'SilentlyContinue';
     $cs = Get-CimInstance Win32_ComputerSystemProduct | Select-Object -First 1;
@@ -111,14 +110,14 @@ export function getHardwareInfo(forceRefresh: boolean = false): HardwareInfo {
     else if (trimmed.startsWith('DISK_SERIAL:')) diskSerial = trimmed.slice(12).trim();
   }
 
-  // Fallbacks if CIM properties are virtualized or empty
+  // Fallbacks if CIM properties return empty
   if (!computerUuid) computerUuid = machineGuid;
   if (!processorId) processorId = os.cpus()[0]?.model || 'GENERIC-CPU';
   if (!baseboardSerial) baseboardSerial = 'GENERIC-BASEBOARD';
   if (!diskSerial) diskSerial = 'GENERIC-DISK';
   if (!cpuModel) cpuModel = os.cpus()[0]?.model || 'Standard CPU';
 
-  // Compute canonical immutable hardware fingerprint
+  // Generate SHA256 fingerprint from hardware identifiers
   const canonicalString = [
     `GUID=${machineGuid}`,
     `UUID=${computerUuid}`,
@@ -147,17 +146,13 @@ export function getHardwareInfo(forceRefresh: boolean = false): HardwareInfo {
   return cachedHardwareInfo;
 }
 
-/**
- * Derive machine-bound 256-bit AES key from the hardware fingerprint
- */
+// Derive encryption key bound to hardware
 function deriveMachineKey(hwFingerprint: string, machineGuid: string): Buffer {
-  const salt = 'DubbingGholam_Hardware_Binding_Salt_v1';
+  const salt = 'DubbingVidans_Hardware_Binding_Salt_v1';
   return crypto.pbkdf2Sync(`${hwFingerprint}:${machineGuid}`, salt, 100000, 32, 'sha256');
 }
 
-/**
- * Get or generate the cryptographic device identity stored in machine-wide storage
- */
+// Get or generate local device keypair
 export function getOrCreateDeviceIdentity(): {
   devicePublicKeyPem: string;
   devicePrivateKeyPem: string;
@@ -173,12 +168,10 @@ export function getOrCreateDeviceIdentity(): {
       const content = fs.readFileSync(identityFilePath, 'utf8');
       const identity: DeviceIdentity = JSON.parse(content);
 
-      // Verify stored hardware fingerprint matches physical machine
       if (identity.hardwareFingerprint !== hw.hardwareFingerprint) {
         throw new Error('HARDWARE_MISMATCH');
       }
 
-      // Decrypt device private key using current machine's derived key
       const iv = Buffer.from(identity.iv, 'base64');
       const authTag = Buffer.from(identity.authTag, 'base64');
       const decipher = crypto.createDecipheriv('aes-256-gcm', derivedKey, iv);
@@ -193,17 +186,15 @@ export function getOrCreateDeviceIdentity(): {
         hardwareFingerprint: hw.hardwareFingerprint,
       };
     } catch (err: any) {
-      console.warn('[Hardware Identity] Existing identity invalid or copied from another machine:', err?.message);
-      // Re-initialize for this actual hardware
+      console.warn('[Hardware Identity] Existing identity invalid:', err?.message);
     }
   }
 
-  // Generate new device Ed25519 key pair for this machine
+  // Create new keypair if not found
   const { publicKey, privateKey } = crypto.generateKeyPairSync('ed25519');
   const devicePublicKeyPem = publicKey.export({ type: 'spki', format: 'pem' }).toString();
   const devicePrivateKeyPem = privateKey.export({ type: 'pkcs8', format: 'pem' }).toString();
 
-  // Encrypt private key with AES-256-GCM keyed to this machine
   const iv = crypto.randomBytes(12);
   const cipher = crypto.createCipheriv('aes-256-gcm', derivedKey, iv);
   let encrypted = cipher.update(devicePrivateKeyPem, 'utf8', 'base64');

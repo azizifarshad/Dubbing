@@ -59,9 +59,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
 }
 
 (async () => {
-  // ----------------------------------------------------------------------------------
+
   // FEATURE 1: ZERO-UNNECESSARY-SILENCE AUDIO GENERATION
-  // ----------------------------------------------------------------------------------
 
   await runTest('1.1: Audio buffer with leading & trailing silence is trimmed with 25ms padding', () => {
     // Create a mock AudioBuffer: 44100Hz, 2.0 seconds (88200 samples)
@@ -162,9 +161,7 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.ok(result.stats.totalSilenceRemovedSec > 0.4, `Total silence removed > 0.4s: was ${result.stats.totalSilenceRemovedSec}`);
   });
 
-  // ----------------------------------------------------------------------------------
   // FEATURE 2: FLEXIBLE TIMELINE PLACEMENT
-  // ----------------------------------------------------------------------------------
 
   await runTest('2.1: Shifting dialogue earlier into safe pre-gap resolves overlap without speed acceleration', async () => {
     const subs: SubtitleItem[] = [

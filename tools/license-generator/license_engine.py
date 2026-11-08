@@ -1,4 +1,4 @@
-import os
+﻿import os
 import json
 import uuid
 import base64
@@ -6,7 +6,12 @@ from datetime import datetime, timezone
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-PRODUCT_NAME = "Dubbing-Gholam"
+PRODUCT_NAME = "Dubbing Vidans"
+VALID_PRODUCT_NAMES = [
+    "Dubbing Vidans",
+    "Dubbing-Vidans",
+    "DubbingVidans",
+]
 LICENSE_SCHEMA_VERSION = 1
 
 def get_keys_dir():
@@ -48,9 +53,9 @@ def load_or_generate_master_keys():
 
     return priv_key, pub_key
 
-def build_canonical_request_string(hw_fingerprint, device_pubkey, computer_name, requested_at):
+def build_canonical_request_string(hw_fingerprint, device_pubkey, computer_name, requested_at, product_name=PRODUCT_NAME):
     return "|".join([
-        f"PRODUCT={PRODUCT_NAME}",
+        f"PRODUCT={product_name}",
         f"VERSION={LICENSE_SCHEMA_VERSION}",
         f"FINGERPRINT={hw_fingerprint}",
         f"DEVICE_KEY={device_pubkey.strip()}",
@@ -77,8 +82,9 @@ def verify_activation_request(req_data: dict) -> dict:
     Verifies that the customer's activation request was signed by the device's private key.
     """
     try:
-        if req_data.get("product") != PRODUCT_NAME:
-            return {"valid": False, "error": f"Invalid product name: {req_data.get('product')}"}
+        req_product = req_data.get("product")
+        if req_product not in VALID_PRODUCT_NAMES:
+            return {"valid": False, "error": f"Invalid product name: {req_product}"}
 
         hw_fp = req_data.get("hardwareFingerprint")
         dev_pubkey_pem = req_data.get("devicePublicKey")
@@ -89,7 +95,7 @@ def verify_activation_request(req_data: dict) -> dict:
         if not all([hw_fp, dev_pubkey_pem, comp_name, req_at, dev_sig_b64]):
             return {"valid": False, "error": "Missing required fields in request"}
 
-        canonical_req = build_canonical_request_string(hw_fp, dev_pubkey_pem, comp_name, req_at)
+        canonical_req = build_canonical_request_string(hw_fp, dev_pubkey_pem, comp_name, req_at, product_name=req_product)
         dev_pubkey = serialization.load_pem_public_key(dev_pubkey_pem.encode("utf-8"))
         dev_sig = base64.b64decode(dev_sig_b64)
 
@@ -103,7 +109,8 @@ def generate_signed_license(
     hardware_fingerprint: str,
     device_public_key_pem: str,
     features=None,
-    license_id=None
+    license_id=None,
+    product_name=PRODUCT_NAME
 ) -> dict:
     """
     Signs a permanent hardware-bound license file using the Master Authority Private Key.
@@ -130,12 +137,13 @@ def generate_signed_license(
 
     payload = {
         "version": LICENSE_SCHEMA_VERSION,
-        "product": PRODUCT_NAME,
+        "product": product_name,
         "licenseId": license_id,
         "customerName": customer_name.strip(),
         "hardwareFingerprint": hardware_fingerprint.strip(),
         "devicePublicKey": device_public_key_pem.strip(),
         "licenseType": "permanent",
+        "isPermanent": True,
         "issuedAt": issued_at,
         "features": features
     }

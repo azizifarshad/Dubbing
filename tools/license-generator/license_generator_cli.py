@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """
-Dubbing-Gholam License Generator CLI (Software Owner Tool)
+Dubbing Vidans License Generator CLI (Software Owner Tool)
 Usage:
-    python license_generator_cli.py --request customer_activation.dbreq --customer "Ali Rezaei" --output AliRezaei.dblic
+    python license_generator_cli.py --request customer_activation.vidansreq --customer "Ali Rezaei" --output AliRezaei.vidanslic
 """
 
 import os
 import sys
 import json
 import argparse
+import io
+
+if sys.platform == "win32":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
+
 from license_engine import (
     PRODUCT_NAME,
     verify_activation_request,
@@ -17,9 +23,9 @@ from license_engine import (
 
 def main():
     parser = argparse.ArgumentParser(description=f"{PRODUCT_NAME} Offline License Generator (Owner Tool)")
-    parser.add_argument("--request", "-r", required=True, help="Path to customer's .dbreq activation request file")
+    parser.add_argument("--request", "-r", required=True, help="Path to customer's .vidansreq activation request file")
     parser.add_argument("--customer", "-c", required=True, help="Customer name or organization label")
-    parser.add_argument("--output", "-o", help="Path to write the generated .dblic license file")
+    parser.add_argument("--output", "-o", help="Path to write the generated .vidanslic license file")
 
     args = parser.parse_args()
 
@@ -53,20 +59,21 @@ def main():
     signed_license = generate_signed_license(
         customer_name=args.customer,
         hardware_fingerprint=details["hardwareFingerprint"],
-        device_public_key_pem=details["devicePublicKey"]
+        device_public_key_pem=details["devicePublicKey"],
+        product_name=details.get("product", PRODUCT_NAME)
     )
 
     out_path = args.output
     if not out_path:
         clean_name = "".join(c for c in args.customer if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
-        out_path = f"DubbingGholam_License_{clean_name}.dblic"
+        out_path = f"DubbingVidans_License_{clean_name}.vidanslic"
 
     with open(out_path, "w", encoding="utf-8") as f:
         json.dump(signed_license, f, indent=2, ensure_ascii=False)
 
     print(f"\n[SUCCESS] Permanent license generated and signed successfully:")
     print(f" -> {os.path.abspath(out_path)}")
-    print("\nSend this .dblic file to the customer to activate Dubbing-Gholam permanently on their device.\n")
+    print(f"\nSend this .vidanslic file to the customer to activate {PRODUCT_NAME} permanently on their device.\n")
 
 if __name__ == "__main__":
     main()

@@ -3,10 +3,8 @@
  * using Whisper Large-v3 (via faster-whisper) and FFmpeg embedded subtitle extraction.
  */
 
-export const PYTHON_WHISPER_SCRIPT = `# ==============================================================================
-# High-Precision Local English Subtitle Extraction via Whisper Large-v3
-# Specialized for Film Dubbing and Educational Video Courses
-# ==============================================================================
+export const PYTHON_WHISPER_SCRIPT = `# Local Whisper transcription script
+
 # Runs Whisper Large-v3 locally with GPU CUDA acceleration (or CPU fallback)
 # generating millisecond-accurate SRT subtitles synchronized for dubbing.
 
@@ -15,7 +13,6 @@ export const PYTHON_WHISPER_SCRIPT = `# ========================================
 # pip install faster-whisper
 # (For NVIDIA CUDA acceleration):
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
-# ==============================================================================
 
 import os
 import sys
@@ -132,9 +129,7 @@ def extract_srt_whisper(
     print("اکنون می‌توانید این فایل .srt را در وب‌اپلیکیشن بارگذاری کنید.")
     return output_srt_path
 
-# ==============================================================================
 # Interactive CLI execution entry point
-# ==============================================================================
 if __name__ == "__main__":
     print("****************************************************************")
     print("ابزار استخراج زیرنویس انگلیسی Whisper Large-v3 محلی برای دوبله")

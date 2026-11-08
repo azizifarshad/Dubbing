@@ -1,4 +1,4 @@
-import fs from 'fs';
+﻿import fs from 'fs';
 import path from 'path';
 import os from 'os';
 import assert from 'assert';
@@ -8,7 +8,7 @@ import { translateOfflineLocally } from '../src/utils/localTranslator.ts';
 import { generateOfflineSpeechAudio } from '../src/utils/offlineVoiceSynthesizer.ts';
 import { execFileSync } from 'child_process';
 
-console.log('=== Starting Dubbing-Gholam Full Offline System Verification Test ===\n');
+console.log('=== Starting Dubbing Vidans Full Offline System Verification Test ===\n');
 
 // 1. Hardware Fingerprint and Identity
 console.log('1. Checking physical hardware metrics & fingerprint:');
@@ -92,7 +92,7 @@ if (typeof (globalThis as any).window === 'undefined') {
 
 // 5. Offline Voice Synthesizer Audio Generation
 console.log('5. Verifying offline voice synthesis audio buffer creation:');
-const synthResult = await generateOfflineSpeechAudio('سلام، به راهنمای دوبله غلام خوش آمدید.', 'male', 2.5);
+const synthResult = await generateOfflineSpeechAudio('سلام، به راهنمای دوبله ویدانس خوش آمدید.', 'male', 2.5);
 assert.ok(synthResult && synthResult.audioBase64, 'Offline synthesizer must generate audio base64');
 assert.ok(synthResult.duration > 0, 'Synthesizer duration must be greater than zero');
 console.log(`   [PASS] Offline speech generated (${synthResult.duration.toFixed(2)}s).`);
@@ -100,10 +100,14 @@ console.log(`   [PASS] Offline speech generated (${synthResult.duration.toFixed(
 // 6. Security Check: Exclusion of Software Owner Private Key from Installer Distribution
 console.log('6. Verifying Software Owner Key exclusion from distributed assets:');
 const distInstallerDir = path.resolve(process.cwd(), 'dist-installer');
-const installerPath = path.join(distInstallerDir, 'DubbingGholam_Offline_Setup_v2.0.exe');
-assert.ok(fs.existsSync(installerPath), 'Built installer must exist in dist-installer');
+const installerCandidates = [
+  path.join(distInstallerDir, 'Dubbing-Vidans-Setup.exe'),
+  path.join(distInstallerDir, 'Vidans_Offline_Setup_v2.0.exe'),
+];
+const installerPath = installerCandidates.find((p) => fs.existsSync(p));
+assert.ok(installerPath, 'Built installer must exist in dist-installer');
 const stats = fs.statSync(installerPath);
 assert.ok(stats.size > 100 * 1024 * 1024, 'Installer must be >100MB (including offline models)');
-console.log(`   [PASS] Standalone installer validated: ${(stats.size / (1024 * 1024)).toFixed(1)} MB`);
+console.log(`   [PASS] Standalone installer validated (${path.basename(installerPath)}): ${(stats.size / (1024 * 1024)).toFixed(1)} MB`);
 
 console.log('\n=== All 6 Offline Integration Verification Tests Passed Successfully! ===');

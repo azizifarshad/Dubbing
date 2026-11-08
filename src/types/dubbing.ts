@@ -326,10 +326,7 @@ export const TRANSLATION_STYLES: StyleOption[] = [
   },
 ];
 
-// ==========================================
 // AUDIO OVERLAP & BULK SPEED CONTROL TYPES
-// ==========================================
-
 export type OverlapSeverity = 'none' | 'minor' | 'moderate' | 'severe';
 
 export interface OverlapThresholds {
@@ -431,10 +428,7 @@ export interface BulkSpeedHistorySnapshot {
   }[];
 }
 
-// ==========================================
 // AUTO-FIX TIMELINE & INTELLIGENT SCHEDULING TYPES
-// ==========================================
-
 export type TimelineIssueType =
   | 'speech_overlap'      // Active phonated vocal overlap between distinct speakers
   | 'silence_overlap'     // Audio file bounding boxes overlap but vocal speech is clear

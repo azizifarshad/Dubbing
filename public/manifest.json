@@ -1,0 +1,22 @@
+{
+  "name": "Dubbing Vidans",
+  "short_name": "Vidans",
+  "description": "استودیو دوبله هوشمند و آفلاین ویدانس",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#090d11",
+  "theme_color": "#099767",
+  "icons": [
+    {
+      "src": "/logo.png",
+      "sizes": "192x192 512x512 1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "128x128 256x256",
+      "type": "image/png"
+    }
+  ]
+}

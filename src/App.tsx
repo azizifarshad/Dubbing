@@ -20,10 +20,11 @@ import {
   Film,
   ChevronLeft,
   ChevronRight,
+  ShieldAlert,
 } from 'lucide-react';
 
 export default function App() {
-  // 1. API runtime configuration and credentials
+  // API configuration
   const [apiKey, setApiKey] = useState<string>(() => {
     return localStorage.getItem('persian_dub_api_key') || localStorage.getItem('persian_dub_gemini_key') || '';
   });
@@ -43,43 +44,48 @@ export default function App() {
   });
   const [hasEnvKey, setHasEnvKey] = useState<boolean>(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
-
-  // Offline Permanent Licensing State
-  const [isLicensed, setIsLicensed] = useState<boolean>(true); // Optimistic until checked
-  const [customerName, setCustomerName] = useState<string>('');
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState<boolean>(false);
+  const [licenseStatus, setLicenseStatus] = useState<{
+    isLicensed: boolean;
+    customerName?: string;
+    licenseType?: string;
+    isPermanent?: boolean;
+    messageFa?: string;
+  } | null>(null);
 
-  const fetchLicenseStatus = () => {
+  const checkLicense = () => {
     fetch('/api/license/status')
       .then((res) => res.json())
       .then((data) => {
-        if (data.success && data.isValid) {
-          setIsLicensed(true);
-          setCustomerName(data.customerName || '');
-        } else {
-          setIsLicensed(false);
-          setIsLicenseModalOpen(true);
+        if (data && typeof data.isValid === 'boolean') {
+          setLicenseStatus({
+            isLicensed: data.isValid,
+            customerName: data.customerName,
+            licenseType: data.status,
+            isPermanent: data.isPermanent,
+            messageFa: data.messageFa,
+          });
         }
       })
       .catch(() => {});
   };
 
   useEffect(() => {
-    fetchLicenseStatus();
+    checkLicense();
   }, []);
 
-  // 2. Parsed subtitles and project cues
+  // Subtitles and cues
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>([]);
   const [subtitleFileName, setSubtitleFileName] = useState<string>('');
 
-  // 3. Audio buffer and reference video tracks
+  // Audio and video tracks
   const [originalAudioBuffer, setOriginalAudioBuffer] = useState<AudioBuffer | null>(null);
   const [originalAudioName, setOriginalAudioName] = useState<string>('');
   const [originalAudioDuration, setOriginalAudioDuration] = useState<number>(0);
   const [originalAudioBlobUrl, setOriginalAudioBlobUrl] = useState<string | null>(null);
   const [originalVideoFile, setOriginalVideoFile] = useState<File | null>(null);
 
-  // 4. Mixing and exported master track states
+  // Export state
   const [outputBaseName, setOutputBaseName] = useState<string>('');
   const [mixMode, setMixMode] = useState<'ducking' | 'isolated' | 'full_mix'>('ducking');
   const [persianVolume, setPersianVolume] = useState<number>(1.0);
@@ -89,12 +95,12 @@ export default function App() {
   const [sharedAudioBuffer, setSharedAudioBuffer] = useState<AudioBuffer | null>(null);
   const [sharedDuration, setSharedDuration] = useState<number>(0);
 
-  // 5. Active stepper view (1 through 5)
+  // Active step
   const [activeStep, setActiveStep] = useState<number>(1);
   const [viewMode, setViewMode] = useState<'stepper' | 'all'>('stepper');
   const [showFooterAuthor, setShowFooterAuthor] = useState<boolean>(false);
 
-  // Verify server environment credentials on initial mount
+  // Check server configuration on load
   useEffect(() => {
     fetch('/api/check-key', {
       method: 'POST',
@@ -221,30 +227,31 @@ export default function App() {
     <div className="min-h-screen bg-[#090d11] text-slate-100 flex flex-col font-['Vazirmatn',sans-serif]">
       {/* Top Navigation Bar */}
       <Header
-        onOpenLicenseModal={() => setIsLicenseModalOpen(true)}
-        isLicensed={isLicensed}
-        customerName={customerName}
         onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
         hasApiKey={Boolean(apiKey || hasEnvKey)}
         activeLinesCount={subtitles.length}
         readyVoicesCount={readyVoicesCount}
+        onOpenLicenseModal={() => setIsLicenseModalOpen(true)}
+        isLicensed={Boolean(licenseStatus?.isLicensed)}
+        customerName={licenseStatus?.customerName}
       />
 
       {/* Main Studio Container */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        {/* Unlicensed Warning Notice */}
-        {!isLicensed && (
-          <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-500/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-rose-200 shadow-xl">
+        {/* Unlicensed Warning Notice if not active */}
+        {licenseStatus && !licenseStatus.isLicensed && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-fade-in shadow-lg">
             <div className="flex items-center gap-3">
-              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 animate-ping" />
-              <div className="text-xs">
-                <strong>نرم‌افزار فعال‌سازی نشده است:</strong> برای دسترسی و استفاده نامحدود آفلاین، لطفاً فایل لایسنس دائمی خود را وارد فرمایید.
+              <ShieldAlert className="w-6 h-6 text-amber-400 shrink-0" />
+              <div className="text-xs text-amber-200">
+                <span className="font-bold text-amber-300">نسخه آزمایشی / لایسنس دائمی فعال نیست:</span>{' '}
+                {licenseStatus.messageFa || 'نرم‌افزار Dubbing Vidans به صورت سخت‌افزاری فعال نشده است. لطفاً فایل درخواست فعال‌سازی (.vidansreq) را ارسال نمایید.'}
               </div>
             </div>
             <button
               type="button"
               onClick={() => setIsLicenseModalOpen(true)}
-              className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition shrink-0 shadow cursor-pointer"
+              className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-bold rounded-xl transition-all duration-200 shrink-0 cursor-pointer shadow-md"
             >
               فعال‌سازی لایسنس دائمی
             </button>
@@ -462,22 +469,24 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-4 flex items-center justify-center">
           <button
             type="button"
-            onClick={() => setShowFooterAuthor((prev) => !prev)}
-            className="group flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-900/60 hover:bg-slate-800/80 border border-slate-800/80 text-slate-400 hover:text-slate-200 transition-all duration-300 cursor-pointer shadow-sm active:scale-95"
-            title="کلیک کنید"
+            onClick={() => {
+              window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });
+              setShowFooterAuthor((prev) => !prev);
+            }}
+            className="flex items-center gap-2.5 px-3 py-1.5 rounded-full bg-slate-900/60 border border-slate-800/80 text-slate-400 cursor-default select-none shadow-sm outline-none"
           >
             <img
               src="/logo.png"
               alt="Vidans Logo"
-              className="w-5 h-5 rounded-full object-cover ring-1 ring-[#099767]/50 group-hover:ring-[#099767] transition-all"
+              className="w-5 h-5 rounded-full object-cover ring-1 ring-[#099767]/50"
             />
-            <span className="font-medium transition-all duration-300">
+            <span className="font-medium">
               {showFooterAuthor ? (
                 <span className="text-[#34d399] font-semibold tracking-wide animate-fade-in">
-                  Farshad Azizi
+                  FishiAz
                 </span>
               ) : (
-                <span className="text-slate-400 group-hover:text-slate-300">
+                <span className="text-slate-400">
                   Vidans
                 </span>
               )}
@@ -485,14 +494,6 @@ export default function App() {
           </button>
         </div>
       </footer>
-
-      {/* License Modal */}
-      <LicenseModal
-        isOpen={isLicenseModalOpen}
-        onClose={() => setIsLicenseModalOpen(false)}
-        onLicenseChanged={fetchLicenseStatus}
-        isMandatoryActivation={!isLicensed}
-      />
 
       {/* API Key Modal */}
       <ApiKeyModal
@@ -504,6 +505,15 @@ export default function App() {
         ttsModel={ttsModel}
         onSaveApiKey={handleSaveApiKey}
         hasEnvKey={hasEnvKey}
+      />
+
+      {/* Hardware-Bound Offline License Modal */}
+      <LicenseModal
+        isOpen={isLicenseModalOpen}
+        onClose={() => setIsLicenseModalOpen(false)}
+        onLicenseChanged={() => {
+          checkLicense();
+        }}
       />
     </div>
   );

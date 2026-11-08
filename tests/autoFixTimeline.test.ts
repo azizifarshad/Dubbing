@@ -78,9 +78,9 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
 }
 
 (async () => {
-  // ----------------------------------------------------------------------------------
+
   // 1. TIMELINE WITH NO OVERLAPS (IDEMPOTENT NO-OP)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 1: Timeline with no overlaps remains untouched (idempotent)', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 1.8, effectiveDuration: 1.8 }),
@@ -96,9 +96,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(result.success, true, 'Reported as success');
   });
 
-  // ----------------------------------------------------------------------------------
   // 2. TIMELINE WITH MULTIPLE OVERLAPPING SEGMENTS (RESOLVED CLEANLY)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 2: Multiple overlapping segments resolved cleanly', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.30, effectiveDuration: 2.30 }),
@@ -113,9 +112,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.ok(result.stats.segmentsAdjusted >= 2, 'Adjusted segments');
   });
 
-  // ----------------------------------------------------------------------------------
   // 3. INTENTIONAL OVERLAPPING DIALOGUE (PRESERVED INTACT)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 3: Intentional overlapping dialogue preserved intact', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 1.0, end: 4.0, audioDuration: 2.8, effectiveDuration: 2.8 }),
@@ -141,9 +139,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(result.stats.unresolvedConflictsCount, 0, 'Intentional overlap is not an unresolved error');
   });
 
-  // ----------------------------------------------------------------------------------
   // 4. AUDIO LONGER THAN TARGET DURATION (ADAPTIVE STRETCH AT DISCRETE LEVELS)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 4: Long audio stretched at discrete level 1.10x or 1.20x', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.25, effectiveDuration: 2.25 }),
@@ -157,9 +154,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.ok(applied === 1.10 || applied === 1.20, `Speed is discrete level: ${applied}`);
   });
 
-  // ----------------------------------------------------------------------------------
   // 5. AUDIO SHORTER THAN TARGET DURATION (PRESERVES NATURAL PAUSE)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 5: Audio shorter than target duration preserves natural pause', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 4.0, audioDuration: 2.1, effectiveDuration: 2.1 }),
@@ -171,9 +167,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(fixedSub1.appliedSpeed || 1.0, 1.0, 'Speed must remain 1.0x (no artificial slowdown)');
   });
 
-  // ----------------------------------------------------------------------------------
   // 6. AUDIO WITH LEADING AND TRAILING SILENCE (TRIMMED SAFELY)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 6: Leading and trailing silence trimmed safely with boundary padding', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({
@@ -200,9 +195,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(plan1.category, 'AUTO_FIXED');
   });
 
-  // ----------------------------------------------------------------------------------
   // 7. EXCESSIVE DIALOGUE DELAYS (MINIMIZED INTO AVAILABLE PRE-GAP)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 7: Dialogue with artificial delay pulled back into available pre-gap', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 1.5, effectiveDuration: 1.5 }),
@@ -215,9 +209,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.ok(typeof sub2.audioOffset === 'number' && sub2.audioOffset <= 0.05, `Offset reset: ${sub2.audioOffset}`);
   });
 
-  // ----------------------------------------------------------------------------------
   // 8. NATURAL PAUSE PRESERVATION (CONVERSATIONAL RHYTHM KEPT >= 120MS)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 8: Natural pause preserved between consecutive dialogues', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.0, effectiveDuration: 2.0 }),
@@ -228,9 +221,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(result.stats.unresolvedConflictsCount, 0);
   });
 
-  // ----------------------------------------------------------------------------------
   // 9. MULTIPLE CONSECUTIVE CONFLICTS (NO CASCADING RUNAWAY DRIFT)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 9: Multiple consecutive conflicts resolved without cascading runaway drift', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.25, effectiveDuration: 2.25 }),
@@ -249,9 +241,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.ok(Math.abs(start4 - 6.0) <= 0.25, `Sub 4 start: ${start4} (no runaway drift)`);
   });
 
-  // ----------------------------------------------------------------------------------
   // 10. UNSATISFIABLE TIMING CONSTRAINTS (FLAGGED AS UNRESOLVED WITH SPECIFIC REASON)
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 10: Unsatisfiable timing constraints flagged with specific reason', async () => {
     // Target window 2.0s, but TTS is 4.5s (requires 2.25x tempo, far exceeding 1.30x!)
     const subs: SubtitleItem[] = [
@@ -274,9 +265,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     );
   });
 
-  // ----------------------------------------------------------------------------------
   // 11. STRICT 1.30X MAXIMUM SPEED LIMIT
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 11: Strict 1.30x maximum speed limit (NEVER exceeds 1.30x)', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 3.8, effectiveDuration: 3.8 }),
@@ -289,9 +279,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.ok(sub1.appliedSpeed <= 1.30, 'Never exceeds 1.30x');
   });
 
-  // ----------------------------------------------------------------------------------
   // 12. DISCRETE ADAPTIVE SPEED LEVELS [1.00, 1.10, 1.20, 1.30]
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 12: Discrete adaptive speed levels selection', async () => {
     // Test 1: Needed 1.05 -> selects 1.10
     const s1 = selectAdaptiveSpeedLevel(1.05);
@@ -315,9 +304,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(s4.category, 'MANUAL_REVIEW_REQUIRED');
   });
 
-  // ----------------------------------------------------------------------------------
   // 13. DURATION-AWARE PERSIAN TRANSLATION SHORTENING
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 13: Persian translation shortening generates valid concise candidate', async () => {
     const sub = createMockSub({
       id: 1,
@@ -338,9 +326,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.notStrictEqual(concise.validationStatus, 'invalid', 'Maintains semantic validity (not invalid)');
   });
 
-  // ----------------------------------------------------------------------------------
   // 14. SEMANTIC & NEGATION PRESERVATION IN TRANSLATION
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 14: Rejection of candidates omitting negation or numbers', async () => {
     const sub = createMockSub({
       id: 1,
@@ -375,9 +362,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     }
   });
 
-  // ----------------------------------------------------------------------------------
   // 15. PRESERVATION OF ORIGINAL AUDIO IN MEMORY / SNAPSHOT
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 15: Preservation of original audio in originalAudioBase64', async () => {
     const rawAudio = 'data:audio/wav;base64,RAW_PRISTINE_INITIAL_TEST_AUDIO';
     const subs: SubtitleItem[] = [
@@ -390,9 +376,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(sub1.originalAudioBase64, rawAudio, 'Original audio preserved pristine');
   });
 
-  // ----------------------------------------------------------------------------------
   // 16. SECOND PASS VERIFICATION CONFIRMS ZERO UNINTENDED OVERLAPS
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 16: Second pass verification confirms zero unintended overlaps', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.3, effectiveDuration: 2.3 }),
@@ -405,9 +390,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.ok(result.stats.automaticallyResolvedOverlaps >= 1, 'Overlaps reported fixed in second pass');
   });
 
-  // ----------------------------------------------------------------------------------
   // 17. UNDO AND RESTORE REVERTS 100% OF AUDIO AND TIMING
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 17: Undo and restore reverts 100% of audio and timing', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioOffset: 0.15, audioDuration: 2.3 }),
@@ -427,9 +411,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(restoredViaHistory[0].audioDuration, 2.3, 'History snapshot restores duration');
   });
 
-  // ----------------------------------------------------------------------------------
   // 18. CANCELLATION VIA ABORTSIGNAL TERMINATES CLEANLY
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 18: Cancellation via AbortSignal terminates cleanly', async () => {
     const subs: SubtitleItem[] = [
       createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.2 }),
@@ -446,9 +429,8 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
     assert.strictEqual(caught, true, 'Operation aborted cleanly');
   });
 
-  // ----------------------------------------------------------------------------------
   // 19. REALISTIC MULTI-SPEAKER CONVERSATION WITH 100+ SEGMENTS
-  // ----------------------------------------------------------------------------------
+
   await runAsyncTest('Test 19: Realistic multi-speaker conversation with 100+ segments runs efficiently', async () => {
     const largeTimeline: SubtitleItem[] = [];
     const voices: GeminiVoiceId[] = ['Charon', 'Puck', 'Kore', 'Zephyr'];

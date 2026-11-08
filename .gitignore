@@ -1,15 +1,26 @@
 node_modules/
 build/
 dist/
+dist-installer/
+*.exe
+!DubbingVidans.exe
 coverage/
 .DS_Store
 *.log
 .env*
 !.env.example
-*.dblic
-*.dbreq
-dist-installer/
-models/
-tools/license-generator/dist/
-tools/license-generator/build/
+
+# License generator owner secrets
+*.pem
+owner_private_key.pem
 tools/license-generator/keys/owner_private_key.pem
+tools/license-generator/build/
+tools/license-generator/dist/
+tools/license-generator/__pycache__/
+
+# AI and Whisper models
+models/
+
+# Scratch and temporary test data
+scratch/
+.license_data/

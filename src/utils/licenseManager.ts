@@ -3,6 +3,7 @@ import path from 'path';
 import crypto from 'crypto';
 import {
   PRODUCT_NAME,
+  VALID_PRODUCT_NAMES,
   LICENSE_SCHEMA_VERSION,
   MASTER_AUTHORITY_PUBLIC_KEY_PEM,
   ActivationRequest,
@@ -16,9 +17,7 @@ import {
   getSharedDataDir,
 } from './hardwareIdentity';
 
-/**
- * Creates canonical string for permanent license payload verification
- */
+// Canonical string format for license signing
 export function buildCanonicalLicenseString(p: PermanentLicensePayload): string {
   return [
     `PRODUCT=${p.product}`,
@@ -33,17 +32,16 @@ export function buildCanonicalLicenseString(p: PermanentLicensePayload): string 
   ].join('|');
 }
 
-/**
- * Creates canonical string for device activation request
- */
+// Canonical string format for activation requests
 export function buildCanonicalRequestString(
   hwFingerprint: string,
   devicePublicKeyPem: string,
   computerName: string,
-  requestedAt: string
+  requestedAt: string,
+  productName: string = PRODUCT_NAME
 ): string {
   return [
-    `PRODUCT=${PRODUCT_NAME}`,
+    `PRODUCT=${productName}`,
     `VERSION=${LICENSE_SCHEMA_VERSION}`,
     `FINGERPRINT=${hwFingerprint}`,
     `DEVICE_KEY=${devicePublicKeyPem.trim()}`,
@@ -52,9 +50,7 @@ export function buildCanonicalRequestString(
   ].join('|');
 }
 
-/**
- * Generates an Activation Request file payload for the current Windows machine
- */
+// Generate activation request for this machine
 export function generateActivationRequest(): ActivationRequest {
   const hw = getHardwareInfo();
   const identity = getOrCreateDeviceIdentity();
@@ -64,10 +60,10 @@ export function generateActivationRequest(): ActivationRequest {
     hw.hardwareFingerprint,
     identity.devicePublicKeyPem,
     hw.computerName,
-    requestedAt
+    requestedAt,
+    PRODUCT_NAME
   );
 
-  // Device signs its own request to cryptographically prove possession of device private key
   const privKey = crypto.createPrivateKey(identity.devicePrivateKeyPem);
   const signature = crypto.sign(null, Buffer.from(canonicalReq, 'utf8'), privKey);
 
@@ -84,9 +80,7 @@ export function generateActivationRequest(): ActivationRequest {
   };
 }
 
-/**
- * Validates a signed license file against the Software Owner's public key and current hardware
- */
+// Verify license signature and match against local hardware
 export function verifyLicense(
   licenseData: SignedLicenseFile
 ): LicenseValidationResult {
@@ -102,16 +96,20 @@ export function verifyLicense(
 
     const payload = licenseData.payload;
 
-    if (payload.product !== PRODUCT_NAME) {
+    const isProductMatch =
+      payload.product === PRODUCT_NAME ||
+      (VALID_PRODUCT_NAMES && VALID_PRODUCT_NAMES.includes(payload.product));
+
+    if (!isProductMatch) {
       return {
         isValid: false,
         status: 'corrupted',
-        messageFa: 'این لایسنس متعلق به این نرم‌افزار نیست.',
-        messageEn: 'The license is not issued for this software.',
+        messageFa: 'این لایسنس متعلق به نرم‌افزار Dubbing Vidans نیست.',
+        messageEn: 'The license is not issued for Dubbing Vidans.',
       };
     }
 
-    // 1. Verify Software Owner's digital signature with embedded Master Authority Public Key
+    // Check authority signature
     const canonicalStr = buildCanonicalLicenseString(payload);
     const authorityPubKey = crypto.createPublicKey(MASTER_AUTHORITY_PUBLIC_KEY_PEM);
     const signatureBuf = Buffer.from(licenseData.authoritySignature, 'base64');
@@ -132,7 +130,7 @@ export function verifyLicense(
       };
     }
 
-    // 2. Verify hardware binding matches this physical machine
+    // Check hardware fingerprint
     const currentHw = getHardwareInfo();
     const currentIdentity = getOrCreateDeviceIdentity();
 
@@ -147,7 +145,7 @@ export function verifyLicense(
       };
     }
 
-    // 3. Verify device public key match
+    // Check device public key
     if (payload.devicePublicKey.trim() !== currentIdentity.devicePublicKeyPem.trim()) {
       return {
         isValid: false,
@@ -168,8 +166,8 @@ export function verifyLicense(
       isPermanent: payload.isPermanent ?? true,
       hardwareFingerprint: payload.hardwareFingerprint,
       features: payload.features || [],
-      messageFa: 'لایسنس دائمی فعال است.',
-      messageEn: 'Permanent license is active and verified.',
+      messageFa: 'لایسنس دائمی Dubbing Vidans فعال است.',
+      messageEn: 'Permanent license for Dubbing Vidans is active and verified.',
     };
   } catch (err: any) {
     return {
@@ -181,24 +179,30 @@ export function verifyLicense(
   }
 }
 
-/**
- * Checks the persistent machine-wide license file in ProgramData
- */
+// Check installed license in ProgramData
 export function checkCurrentLicense(): LicenseValidationResult {
   const sharedDir = getSharedDataDir();
-  const licensePath = path.join(sharedDir, 'license.dblic');
+  const vidansLicPath = path.join(sharedDir, 'license.vidanslic');
+  const legacyLicPath = path.join(sharedDir, 'license.dblic');
 
-  if (!fs.existsSync(licensePath)) {
+  let activePath = '';
+  if (fs.existsSync(vidansLicPath)) {
+    activePath = vidansLicPath;
+  } else if (fs.existsSync(legacyLicPath)) {
+    activePath = legacyLicPath;
+  }
+
+  if (!activePath) {
     return {
       isValid: false,
       status: 'no_license',
-      messageFa: 'لایسنس نرم‌افزار یافت نشد. لطفاً ابتدا فایل درخواست را برای مدیر نرم‌افزار ارسال کنید و فایل لایسنس را وارد نمایید.',
+      messageFa: 'لایسنس نرم‌افزار یافت نشد. لطفاً فایل درخواست (.vidansreq) را برای پشتیبانی ارسال کرده و فایل لایسنس را وارد نمایید.',
       messageEn: 'No license found. Please generate an activation request and import your license file.',
     };
   }
 
   try {
-    const raw = fs.readFileSync(licensePath, 'utf8');
+    const raw = fs.readFileSync(activePath, 'utf8');
     const parsed: SignedLicenseFile = JSON.parse(raw);
     return verifyLicense(parsed);
   } catch (err: any) {
@@ -211,9 +215,7 @@ export function checkCurrentLicense(): LicenseValidationResult {
   }
 }
 
-/**
- * Installs and saves a new license file to ProgramData for all machine accounts
- */
+// Save license file to shared directory
 export function installLicense(licenseContentStr: string): LicenseValidationResult {
   try {
     const parsed: SignedLicenseFile = JSON.parse(licenseContentStr);
@@ -224,14 +226,19 @@ export function installLicense(licenseContentStr: string): LicenseValidationResu
     }
 
     const sharedDir = getSharedDataDir();
-    const licensePath = path.join(sharedDir, 'license.dblic');
+    const vidansLicPath = path.join(sharedDir, 'license.vidanslic');
+    const legacyLicPath = path.join(sharedDir, 'license.dblic');
 
-    fs.writeFileSync(licensePath, JSON.stringify(parsed, null, 2), { encoding: 'utf8' });
+    const formatted = JSON.stringify(parsed, null, 2);
+    fs.writeFileSync(vidansLicPath, formatted, { encoding: 'utf8' });
+    try {
+      fs.writeFileSync(legacyLicPath, formatted, { encoding: 'utf8' });
+    } catch {}
 
     return {
       ...result,
-      messageFa: 'لایسنس دائمی با موفقیت فعال شد. تمامی امکانات نرم‌افزار به صورت آفلاین فعال هستند.',
-      messageEn: 'Permanent license successfully installed. All offline features are active.',
+      messageFa: 'لایسنس دائمی Dubbing Vidans با موفقیت فعال شد. تمامی امکانات نرم‌افزار به صورت آفلاین فعال هستند.',
+      messageEn: 'Permanent license for Dubbing Vidans successfully installed. All offline features are active.',
     };
   } catch (err: any) {
     return {

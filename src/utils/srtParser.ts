@@ -109,12 +109,12 @@ export function parseSrt(srtContent: string): SubtitleItem[] {
 /**
  * Builds an SRT file string from SubtitleItems with translated Persian text
  */
-export function exportToSrt(items: SubtitleItem[]): string {
+export function exportToSrt(items: SubtitleItem[], offsetSeconds: number = 0): string {
   return items
     .map((item, index) => {
       const id = index + 1;
       const text = item.farsiText.trim() || item.originalText.trim();
-      return `${id}\n${secondsToSrtTime(item.start)} --> ${secondsToSrtTime(item.end)}\n${text}\n`;
+      return `${id}\n${secondsToSrtTime(Math.max(0, item.start + offsetSeconds))} --> ${secondsToSrtTime(Math.max(0.1, item.end + offsetSeconds))}\n${text}\n`;
     })
     .join('\n');
 }

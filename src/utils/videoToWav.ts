@@ -14,10 +14,9 @@ export interface VideoConversionResult {
  * Standard Python script for local offline FFmpeg conversion on Windows/Linux/Mac
  * (Matches the exact command provided by user)
  */
-export const PYTHON_FFMPEG_SCRIPT = `# ========================================================
-# Video to WAV Audio Extraction Script for Dubbing Studio
-# Output specs: PCM 16-bit | 44100Hz Sample Rate | Stereo 2 Channels
-# ========================================================
+export const PYTHON_FFMPEG_SCRIPT = `# Video to WAV extraction script
+# Output: 16-bit PCM, 44100Hz, Stereo
+
 import subprocess
 import shutil
 from pathlib import Path

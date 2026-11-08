@@ -74,10 +74,7 @@ function createMockSub(partial: Partial<SubtitleItem>): SubtitleItem {
   };
 }
 
-// ----------------------------------------------------------------------------------
 // 1. OVERLAP CLASSIFICATION TESTS
-// ----------------------------------------------------------------------------------
-
 runTest('Overlap Classification: Duration <= 0.04s classified as none', () => {
   const sev1 = classifyOverlapSeverity(0.02, 5);
   const sev2 = classifyOverlapSeverity(0.04, 3);
@@ -100,10 +97,7 @@ runTest('Overlap Classification: Severe overlap (>0.60s and >25%)', () => {
   assert.strictEqual(sev1, 'severe');
 });
 
-// ----------------------------------------------------------------------------------
 // 2. TIMELINE DETECTION & SILENCE VS ACTIVE SPEECH
-// ----------------------------------------------------------------------------------
-
 runTest('Timeline Overlap: Consecutive non-overlapping segments detected as 0 overlaps', () => {
   const subs: SubtitleItem[] = [
     createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 1.9 }),
@@ -184,10 +178,7 @@ runTest('Overlap Summary Metrics: Calculates total overlaps, affected segments, 
   assert.strictEqual(seg2Overlaps.length, 2); // overlaps with #1 and with #3
 });
 
-// ----------------------------------------------------------------------------------
 // 3. BULK SPEED SELECTION MODES
-// ----------------------------------------------------------------------------------
-
 runTest('Bulk Speed Selection: "overlapping" mode filters only conflicting segments', () => {
   const subs: SubtitleItem[] = [
     createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.5 }), // collides with #2
@@ -234,10 +225,7 @@ runTest('Bulk Speed Selection: "threshold" mode filters segments longer than thr
   assert.strictEqual(preview[0].subId, 2);
 });
 
-// ----------------------------------------------------------------------------------
 // 4. BULK SPEED CALCULATION MODES
-// ----------------------------------------------------------------------------------
-
 runTest('Bulk Speed Calculation: Percentage mode accurately computes proposed speed', () => {
   const subs: SubtitleItem[] = [
     createMockSub({ id: 1, start: 0.0, end: 2.0, audioDuration: 2.0, appliedSpeed: 1.0 }),
@@ -307,10 +295,7 @@ runTest('Bulk Speed Safety: Clamps extreme speeds to 1.35x and flags unsafe warn
   assert.ok(preview[0].safetyWarningFa?.includes('خارج از بازه کیفی مجاز'));
 });
 
-// ----------------------------------------------------------------------------------
 // 5. UNDO & PERSISTENCE
-// ----------------------------------------------------------------------------------
-
 runTest('Undo & Audio Preservation: undoBulkSpeedChanges restores pristine original state', () => {
   const initialSubs: SubtitleItem[] = [
     createMockSub({
@@ -365,10 +350,7 @@ runTest('Undo & Audio Preservation: undoBulkSpeedChanges restores pristine origi
   assert.strictEqual(restored[0].audioDuration, 2.4);
 });
 
-// ----------------------------------------------------------------------------------
 // 6. AUDIO MIXER COMPATIBILITY: PROCESSED AUDIO & MUTING
-// ----------------------------------------------------------------------------------
-
 runTest('Audio Mixer: Respects processedAudioBase64 when present and skips muted lines', () => {
   const subs: SubtitleItem[] = [
     createMockSub({
@@ -399,10 +381,7 @@ runTest('Audio Mixer: Respects processedAudioBase64 when present and skips muted
   assert.strictEqual(activeTracks[0].audio, 'stretched_audio_1'); // processed audio prioritized
 });
 
-// ----------------------------------------------------------------------------------
 // 7. 1-CLICK COMPLETE OVERLAP RESOLVER
-// ----------------------------------------------------------------------------------
-
 runTest('1-Click Overlap Resolver: autoResolveAllOverlaps eliminates all timeline collisions in one go', async () => {
   // Setup 3 overlapping lines (accidental cascade of overlaps)
   // Line 1: start 0.0, audioDuration 2.6s (collides with Line 2 by 0.6s)

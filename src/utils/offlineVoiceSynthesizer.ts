@@ -1,8 +1,6 @@
 import { getAudioContext, audioBufferToWav } from './audioMixer';
 
-// CRITICAL: Global Set to keep utterance objects alive in memory.
-// Chromium's garbage collector destroys local SpeechSynthesisUtterance objects
-// mid-sentence after 5-8 seconds, which causes truncated sentences.
+// Keep utterance in memory so Chromium doesn't garbage collect mid-sentence
 const activeUtterancesKeepAlive = new Set<SpeechSynthesisUtterance>();
 
 let keepAliveInterval: any = null;
@@ -13,7 +11,7 @@ function ensureSpeechKeepAlive() {
     keepAliveInterval = setInterval(() => {
       if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
         if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
-          // Chromium engine keep-alive tick to prevent internal pause on long sentences
+          // Pause and resume briefly to prevent long-sentence freeze in Chromium
           window.speechSynthesis.pause();
           window.speechSynthesis.resume();
         }
@@ -22,10 +20,7 @@ function ensureSpeechKeepAlive() {
   }
 }
 
-/**
- * Creates an audible, pleasant, natural voice audio buffer for timeline duration tracking
- * and offline playback with syllable-modulated vocal formants.
- */
+// Generate synthesized preview audio for timeline tracking
 export async function generateOfflineSpeechAudio(
   text: string,
   voiceGender: 'female' | 'male' | 'deep' = 'male',
@@ -34,7 +29,7 @@ export async function generateOfflineSpeechAudio(
   const ctx = getAudioContext();
   const sampleRate = ctx.sampleRate || 44100;
 
-  // Estimate duration based on word count (approx ~0.38s per Persian word)
+  // Approximate ~0.38s per Persian word
   const words = text.trim().split(/\s+/).filter(Boolean);
   const wordCount = Math.max(1, words.length);
   const calculatedDuration = Math.max(1.2, Math.min(15, Math.max(targetDurationSec, wordCount * 0.38)));
@@ -45,14 +40,12 @@ export async function generateOfflineSpeechAudio(
 
   // Pitch base frequency
   const baseF0 = voiceGender === 'female' ? 215 : voiceGender === 'deep' ? 120 : 145;
-
-  // Generate pleasant voice harmonics with syllable envelope
   const syllablesPerSec = Math.max(2.5, Math.min(4.5, (wordCount * 2) / calculatedDuration));
 
   for (let i = 0; i < totalSamples; i++) {
     const t = i / sampleRate;
 
-    // Fade in/out at extremes
+    // Fade edges
     let globalEnv = 1.0;
     if (t < 0.05) globalEnv = t / 0.05;
     else if (t > calculatedDuration - 0.08) globalEnv = (calculatedDuration - t) / 0.08;
@@ -61,29 +54,32 @@ export async function generateOfflineSpeechAudio(
     const sylPhase = (t * syllablesPerSec * 2 * Math.PI) % (2 * Math.PI);
     const sylEnv = 0.35 + 0.65 * Math.pow(Math.max(0, Math.sin(sylPhase)), 1.5);
 
-    // Natural vocal pitch micro-inflection
+    // Natural pitch inflection
     const pitchDrift = 1.0 + 0.04 * Math.sin(t * 3.0) + 0.02 * Math.sin(t * 7.5);
     const f0 = baseF0 * pitchDrift;
 
-    // Vocal harmonics (glottal pulse approximation: fundamental + 2nd, 3rd, 4th harmonics)
+    // Harmonics
     const h1 = Math.sin(2 * Math.PI * f0 * t) * 0.45;
     const h2 = Math.sin(2 * Math.PI * (f0 * 2) * t) * 0.25;
     const h3 = Math.sin(2 * Math.PI * (f0 * 3) * t) * 0.15;
     const h4 = Math.sin(2 * Math.PI * (f0 * 4) * t) * 0.08;
 
-    // Soft formant vowel resonance
+    // Resonance
     const formant1 = Math.sin(2 * Math.PI * (baseF0 * 4.5) * t) * 0.12;
 
     const sample = (h1 + h2 + h3 + h4 + formant1) * sylEnv * globalEnv * 0.28;
     channelData[i] = Math.max(-1.0, Math.min(1.0, sample));
   }
 
-  // Convert to clean standard WAV Blob
+  // Convert to WAV Blob
   const wavBlob = audioBufferToWav(audioBuffer);
 
-  // Convert Blob to Base64 (compatible with both Browser and Node environments)
+  // Convert to base64
   let base64 = '';
-  if (typeof FileReader !== 'undefined') {
+  if (typeof Buffer !== 'undefined') {
+    const arrayBuf = await wavBlob.arrayBuffer();
+    base64 = Buffer.from(arrayBuf).toString('base64');
+  } else {
     base64 = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -94,9 +90,6 @@ export async function generateOfflineSpeechAudio(
       reader.onerror = reject;
       reader.readAsDataURL(wavBlob);
     });
-  } else {
-    const arrayBuf = await wavBlob.arrayBuffer();
-    base64 = Buffer.from(arrayBuf).toString('base64');
   }
 
   return {
@@ -105,11 +98,7 @@ export async function generateOfflineSpeechAudio(
   };
 }
 
-/**
- * Speaks Persian text aloud in real-time with crystal-clear human speech
- * using the browser's native SpeechSynthesis engine.
- * Ensures sentences are spoken in their ENTIRETY without mid-sentence cutoffs.
- */
+// Play text using browser SpeechSynthesis
 export function speakTextWithBrowser(
   text: string,
   voiceGender: 'female' | 'male' | 'deep' = 'female',
@@ -137,19 +126,17 @@ export function speakTextWithBrowser(
     }
 
     const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = 'fa-IR'; // Persian / Farsi
+    utterance.lang = 'fa-IR';
 
-    // Keep reference alive in memory to prevent Chrome GC bug
+    // Prevent GC cleanup
     activeUtterancesKeepAlive.add(utterance);
     (window as any).__lastSpeechUtterance = utterance;
 
-    // Steady, consistent natural human speech: exactly 1.0 rate and 1.0 pitch.
-    // Eliminates unnatural speed jumping and pitch distortion.
     utterance.rate = 1.0;
     utterance.pitch = 1.0;
     utterance.volume = 1.0;
 
-    // Search for Persian / Farsi voice
+    // Find available Persian voice
     const voices = window.speechSynthesis.getVoices();
     const farsiVoice = voices.find(
       (v) =>
@@ -183,7 +170,6 @@ export function speakTextWithBrowser(
       finishHandler();
     };
 
-    // If currently paused, resume first
     if (window.speechSynthesis.paused) {
       window.speechSynthesis.resume();
     }
@@ -197,9 +183,7 @@ export function speakTextWithBrowser(
   }
 }
 
-/**
- * Stops any ongoing browser speech synthesis immediately
- */
+// Stop current speech playback
 export function stopBrowserSpeech() {
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     try {

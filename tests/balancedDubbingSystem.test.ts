@@ -85,9 +85,7 @@ function runTest(name: string, fn: () => void) {
 
 console.log('=== Starting Balanced Duration-Aware Dubbing System Test Suite ===\n');
 
-// =========================================================================
 // 1. Accurate source timing extraction (speech vs silence boundaries)
-// =========================================================================
 runTest('Requirement 1: Accurate source speech timing extraction and silence trimming', () => {
   const sampleRate = 44100;
   // 350ms leading silence, 1800ms speech tone, 250ms trailing silence = 2.4s total file
@@ -99,9 +97,7 @@ runTest('Requirement 1: Accurate source speech timing extraction and silence tri
   assert.ok(Math.abs(profile.effectiveDuration - 1.80) < 0.05, `Effective duration: ${profile.effectiveDuration}`);
 });
 
-// =========================================================================
 // 2. Incorrect or missing subtitle timestamps fallback
-// =========================================================================
 runTest('Requirement 2: Fallback handling for missing or inverted subtitle timestamps', () => {
   const subWithMissingDuration: SubtitleItem = {
     id: 1,
@@ -122,9 +118,7 @@ runTest('Requirement 2: Fallback handling for missing or inverted subtitle times
   assert.ok(!isNaN(scoreResult) && scoreResult >= 0);
 });
 
-// =========================================================================
 // 3. Persian text normalization
-// =========================================================================
 runTest('Requirement 3: Persian text normalization (Arabic Yeh/Kaf to Persian, ZWNJ normalization)', () => {
   const rawText = 'يك كلاس آموزشي  درباره‌ی   APIها و متغيّرها!';
   const normalized = normalizePersianText(rawText);
@@ -136,9 +130,7 @@ runTest('Requirement 3: Persian text normalization (Arabic Yeh/Kaf to Persian, Z
   assert.ok(!normalized.includes('  '), 'Double spaces should be collapsed');
 });
 
-// =========================================================================
 // 4. Duration prediction (syllable, phoneme, word, punctuation pause)
-// =========================================================================
 runTest('Requirement 4: Persian speech duration predictor computes syllables, words, and pauses', () => {
   const text = 'توی این درس، می‌خوایم نحوه کار با Docker رو یاد بگیریم.';
   const prediction = predictPersianSpeechDuration(text, 'Puck');
@@ -150,9 +142,7 @@ runTest('Requirement 4: Persian speech duration predictor computes syllables, wo
   assert.ok(prediction.confidenceScore >= 0.80, 'Confidence must be high');
 });
 
-// =========================================================================
 // 5. Voice-specific predictor selection (Puck vs Charon vs Kore)
-// =========================================================================
 runTest('Requirement 5: Voice profiles exhibit calibrated tempo differences (Puck faster than Charon)', () => {
   const text = 'در این بخش معماری پایگاه داده و الگوهای طراحی سیستم را بررسی می‌کنیم.';
   const puckPrediction = predictPersianSpeechDuration(text, 'Puck');   // Faster interactive trainer (~4.1 syl/s)
@@ -164,9 +154,7 @@ runTest('Requirement 5: Voice profiles exhibit calibrated tempo differences (Puc
   );
 });
 
-// =========================================================================
 // 6. Candidate ranking and scoring (0.50 Semantic + 0.30 Naturalness + 0.20 Duration)
-// =========================================================================
 runTest('Requirement 6: Multi-candidate scoring formula (0.50 Sem + 0.30 Nat + 0.20 Dur)', () => {
   const source = 'In this tutorial we are going to learn Docker container management.';
   const candidates = [
@@ -187,9 +175,7 @@ runTest('Requirement 6: Multi-candidate scoring formula (0.50 Sem + 0.30 Nat + 0
   assert.strictEqual(c.finalScore, expectedScore);
 });
 
-// =========================================================================
 // 7. Semantic constraint validation (numbers, dates, technical terms)
-// =========================================================================
 runTest('Requirement 7: Number preservation validation flags missing numeric quantities', () => {
   const source = 'We need to create 3 separate microservices for version 2024.';
   const goodCandidate = 'ما باید ۳ میکروسرویس جداگانه برای نسخه 2024 ایجاد کنیم.';
@@ -204,9 +190,7 @@ runTest('Requirement 7: Number preservation validation flags missing numeric qua
   assert.ok(badValidation.semanticScore < goodValidation.semanticScore);
 });
 
-// =========================================================================
 // 8. Negation preservation (catching flipped negations)
-// =========================================================================
 runTest('Requirement 8: Critical negation flip detection (never / don\'t translated positively)', () => {
   const source = 'Do not commit your API secret keys to public repositories.';
   const badFlipped = 'کلیدهای مخفی API خود را در ریپازیتوری‌های عمومی کامیت کنید.'; // Flipped meaning!
@@ -221,9 +205,7 @@ runTest('Requirement 8: Critical negation flip detection (never / don\'t transla
   assert.strictEqual(goodValidation.validationStatus, 'valid');
 });
 
-// =========================================================================
 // 9. Balanced duration acceptance thresholds (0.25s preferred, 0.40s max, 8% relative)
-// =========================================================================
 runTest('Requirement 9: Balanced duration policy acceptance rules', () => {
   const target = 2.5;
 
@@ -237,9 +219,7 @@ runTest('Requirement 9: Balanced duration policy acceptance rules', () => {
   assert.strictEqual(isWithinBalancedTimingPolicy(3.20, target), false);
 });
 
-// =========================================================================
 // 10. Audio duration measurement and speech-active duration (silence trimming)
-// =========================================================================
 runTest('Requirement 10: Speech active duration accounts for vocal phonation vs dead padding', () => {
   const sampleRate = 44100;
   // 400ms lead silence + 2000ms speech + 300ms tail silence = 2700ms file
@@ -250,9 +230,7 @@ runTest('Requirement 10: Speech active duration accounts for vocal phonation vs 
   assert.ok(Math.abs(profile.effectiveDuration - 2.0) < 0.05);
 });
 
-// =========================================================================
 // 11. Intentional overlapping dialogue preservation
-// =========================================================================
 runTest('Requirement 11: Intentional multi-speaker overlaps in original video are preserved', () => {
   const subs: SubtitleItem[] = [
     {
@@ -293,9 +271,7 @@ runTest('Requirement 11: Intentional multi-speaker overlaps in original video ar
   assert.strictEqual(subs[1].start, 12.0);
 });
 
-// =========================================================================
 // 12. Timeline placement with Zero Drift
-// =========================================================================
 runTest('Requirement 12: Zero drift anchoring (dialogue start is never silently shifted)', () => {
   const sub: SubtitleItem = {
     id: 1,
@@ -314,9 +290,7 @@ runTest('Requirement 12: Zero drift anchoring (dialogue start is never silently 
   assert.strictEqual(timelineStart, 22.45, 'Audio start must remain strictly anchored to video start');
 });
 
-// =========================================================================
 // 13. Audio mixing without clipping (master limiter)
-// =========================================================================
 runTest('Requirement 13: Digital clipping detection in silence profiling', () => {
   const sampleRate = 44100;
   const channel = new Float32Array(44100);
@@ -328,9 +302,7 @@ runTest('Requirement 13: Digital clipping detection in silence profiling', () =>
   assert.strictEqual(profile.hasClipping, true);
 });
 
-// =========================================================================
 // 14. MP4 rendering pipeline interface
-// =========================================================================
 runTest('Requirement 14: Final dubbed MP4 export endpoint configuration', () => {
   // Verified /api/render-dubbed-video endpoint exists in server.ts with -c:v copy and AAC multiplexing
   const ffmpegCommand = ['-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-shortest'];
@@ -338,9 +310,7 @@ runTest('Requirement 14: Final dubbed MP4 export endpoint configuration', () => 
   assert.ok(ffmpegCommand.includes('aac'));
 });
 
-// =========================================================================
 // 15. Single-call multi-candidate translation structure
-// =========================================================================
 runTest('Requirement 15: Single translation request structure returns 3 distinct candidate categories', () => {
   const sampleRawCandidates = [
     { id: 'candidate_1', text: 'سلام به همگی، من فرشاد عزیزی هستم.', category: 'faithful' },
@@ -362,9 +332,7 @@ runTest('Requirement 15: Single translation request structure returns 3 distinct
   assert.ok(scored.rankedCandidates.some(c => c.category === 'conversational'));
 });
 
-// =========================================================================
 // 16. Calibration feedback loop (updating error metrics from actual TTS)
-// =========================================================================
 runTest('Requirement 16: Calibration feedback loop updates voice profile multipliers', () => {
   const initialStats = getCalibrationStats('Puck');
 
@@ -381,9 +349,7 @@ runTest('Requirement 16: Calibration feedback loop updates voice profile multipl
   assert.ok(profile.calibrationMultiplier !== undefined);
 });
 
-// =========================================================================
 // 17. Exceptional retry limits (bounded, max 1 retry)
-// =========================================================================
 runTest('Requirement 17: Exceptional retry policy bounded to maximum 1 retry', () => {
   const policy = DEFAULT_BALANCED_TIMING_POLICY;
   assert.strictEqual(policy.normalTtsAttempts, 1);
@@ -391,9 +357,7 @@ runTest('Requirement 17: Exceptional retry policy bounded to maximum 1 retry', (
   assert.strictEqual(policy.allowPlaybackRateModification, false);
 });
 
-// =========================================================================
 // 18. Edge cases: short dialogue (0.4s), compound words, English loan words
-// =========================================================================
 runTest('Requirement 18: Edge cases (short dialogue, compound words, technical loan words)', () => {
   // Short dialogue
   const shortSource = 'Yeah.';

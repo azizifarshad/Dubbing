@@ -1,0 +1,25 @@
+DUBBING VIDANS - END USER LICENSE AGREEMENT (EULA)
+
+Copyright (c) 2026 Vidans Studio. All rights reserved.
+
+PLEASE READ THIS SOFTWARE LICENSE AGREEMENT CAREFULLY BEFORE INSTALLING OR USING DUBBING VIDANS.
+
+1. GRANT OF LICENSE
+Vidans Studio grants you a perpetual, non-exclusive, non-transferable license to install and use Dubbing Vidans on a single computer system tied to your specific hardware fingerprint.
+
+2. OFFLINE OPERATION & PRIVACY
+Dubbing Vidans is designed to operate 100% offline. All processing, speech recognition, audio synthesis, and video rendering occur locally on your machine. No user media, recordings, or credentials are transmitted to any remote server or cloud infrastructure.
+
+3. HARDWARE-BOUND ACTIVATION
+Activation is permanently tied to the unique hardware identifiers of your computer system. The license file generated for your hardware identifier will remain valid indefinitely on the authorized machine.
+
+4. RESTRICTIONS
+You may not:
+- Reverse engineer, decompile, or disassemble the license verification engine.
+- Transfer, rent, lease, or sub-license the software to unauthorized third parties.
+- Modify or remove any proprietary notices or branding from the application.
+
+5. DISCLAIMER OF WARRANTY
+The software is provided "AS IS", without warranty of any kind, express or implied. In no event shall Vidans Studio be liable for any damages arising out of the use or inability to use this software.
+
+By clicking "Next" or "I accept the agreement", you agree to be bound by the terms of this Agreement.

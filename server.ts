@@ -14,6 +14,7 @@ import {
   installLicense,
 } from './src/utils/licenseManager.ts';
 import { getHardwareInfo } from './src/utils/hardwareIdentity.ts';
+import { PRODUCT_NAME } from './src/utils/licenseConfig.ts';
 
 dotenv.config();
 
@@ -23,80 +24,10 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
 
-// ==============================================================================
-// Offline Hardware-Bound Licensing Middleware & Endpoints
-// ==============================================================================
-
-// Helper middleware: enforce permanent offline license on processing endpoints
-const requireLicense = (req: Request, res: Response, next: express.NextFunction) => {
-  const lic = checkCurrentLicense();
-  if (!lic.isValid) {
-    return res.status(403).json({
-      success: false,
-      error: lic.messageFa || 'برای استفاده از امکانات نرم‌افزار، ابتدا لایسنس دائمی را فعال نمایید.',
-      licenseStatus: lic.status,
-      licenseRequired: true,
-    });
-  }
-  next();
-};
-
-// Returns current license status and physical device hardware info
-app.get('/api/license/status', (_req: Request, res: Response) => {
-  try {
-    const lic = checkCurrentLicense();
-    const hw = getHardwareInfo();
-    return res.json({
-      success: true,
-      ...lic,
-      hardwareInfo: {
-        computerName: hw.computerName,
-        osName: hw.osName,
-        cpuModel: hw.cpuModel,
-        hardwareFingerprint: hw.hardwareFingerprint,
-      },
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// Generates activation request file payload (.dbreq)
-app.post('/api/license/request', (_req: Request, res: Response) => {
-  try {
-    const requestData = generateActivationRequest();
-    return res.json({
-      success: true,
-      request: requestData,
-      filename: `DubbingGholam_ActivationRequest_${requestData.computerName}.dbreq`,
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
-// Installs and saves a signed license file (.dblic)
-app.post('/api/license/activate', express.json(), (req: Request, res: Response) => {
-  try {
-    const { licenseContent } = req.body;
-    if (!licenseContent || typeof licenseContent !== 'string') {
-      return res.status(400).json({ success: false, error: 'محتوای فایل لایسنس ارسال نشده است.' });
-    }
-    const result = installLicense(licenseContent);
-    return res.status(result.isValid ? 200 : 400).json({
-      success: result.isValid,
-      ...result,
-    });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-});
-
 // Video to WAV extraction endpoint using FFmpeg (PCM 16-bit, 44100Hz, Stereo)
 // Accepts raw video binary payload up to 300MB
 app.post(
   '/api/convert-video-to-wav',
-  requireLicense,
   express.raw({ type: () => true, limit: '300mb' }),
   async (req: Request, res: Response) => {
     const rawExt = typeof req.query.ext === 'string' ? req.query.ext.replace(/[^a-zA-Z0-9]/g, '') : 'mp4';
@@ -187,7 +118,6 @@ app.post(
 // Endpoint to extract embedded subtitle tracks (.srt) directly from video files via FFmpeg
 app.post(
   '/api/extract-video-subtitles',
-  requireLicense,
   express.raw({ type: ['video/*', 'application/octet-stream', 'multipart/form-data'], limit: '500mb' }),
   async (req: Request, res: Response) => {
     const tempId = 'sub_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
@@ -325,7 +255,6 @@ function formatSrtTimestamp(seconds: number): string {
 // Endpoint to automatically extract English subtitles (.srt) directly from video using FFmpeg audio extraction + Gemini Speech AI
 app.post(
   '/api/transcribe-video-to-srt',
-  requireLicense,
   express.raw({ type: ['video/*', 'audio/*', 'application/octet-stream', 'multipart/form-data'], limit: '500mb' }),
   async (req: Request, res: Response) => {
     const tempId = 'vid_stt_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
@@ -564,6 +493,107 @@ Requirements:
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Licensing API endpoints
+const requireValidLicense = (req: Request, res: Response, next: () => void) => {
+  if (process.env.SKIP_LICENSE_CHECK === 'true') {
+    return next();
+  }
+  const lic = checkCurrentLicense();
+  if (!lic.isValid) {
+    return res.status(403).json({
+      success: false,
+      error: `دسترسی غیرمجاز: لایسنس نرم‌افزار فعال نیست (${lic.messageFa || 'نامعتبر'}). لطفاً ابتدا لایسنس دائمی را فعال نمایید.`,
+      status: lic.status,
+    });
+  }
+  next();
+};
+
+app.get('/api/license/status', (req: Request, res: Response) => {
+  try {
+    const lic = checkCurrentLicense();
+    const hw = getHardwareInfo();
+    return res.json({
+      success: true,
+      isValid: lic.isValid,
+      status: lic.status,
+      customerName: lic.customerName || '',
+      licenseId: lic.licenseId || '',
+      issuedAt: lic.issuedAt || '',
+      isPermanent: lic.isPermanent ?? true,
+      features: lic.features || [],
+      hardwareFingerprint: lic.hardwareFingerprint || hw.hardwareFingerprint,
+      messageFa: lic.messageFa,
+      messageEn: lic.messageEn,
+      product: PRODUCT_NAME,
+      hardwareInfo: {
+        computerName: hw.computerName,
+        osName: hw.osName,
+        cpuModel: hw.cpuModel,
+        hardwareFingerprint: hw.hardwareFingerprint,
+      },
+    });
+  } catch (err: any) {
+    console.error('[License Status Error]:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'خطا در خواندن وضعیت لایسنس',
+    });
+  }
+});
+
+app.post('/api/license/request', (req: Request, res: Response) => {
+  try {
+    const activationReq = generateActivationRequest();
+    const safeComputerName = (activationReq.computerName || 'device').replace(/[^a-zA-Z0-9_-]/g, '_');
+    const filename = `DubbingVidans_ActivationRequest_${safeComputerName}.vidansreq`;
+    return res.json({
+      success: true,
+      request: activationReq,
+      filename,
+    });
+  } catch (err: any) {
+    console.error('[License Request Generation Error]:', err);
+    return res.status(500).json({
+      success: false,
+      error: err.message || 'خطا در تولید فایل درخواست فعال‌سازی',
+    });
+  }
+});
+
+app.post(
+  '/api/license/activate',
+  (req: Request, res: Response) => {
+    try {
+      const { licenseContent } = req.body || {};
+      if (!licenseContent || typeof licenseContent !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'محتوای فایل لایسنس ارسال نشده است.',
+        });
+      }
+      const result = installLicense(licenseContent.trim());
+      return res.json({
+        success: result.isValid,
+        isValid: result.isValid,
+        status: result.status,
+        customerName: result.customerName,
+        licenseId: result.licenseId,
+        issuedAt: result.issuedAt,
+        messageFa: result.messageFa,
+        messageEn: result.messageEn,
+        features: result.features || [],
+      });
+    } catch (err: any) {
+      console.error('[License Activation Error]:', err);
+      return res.status(500).json({
+        success: false,
+        error: err.message || 'خطا در فعال‌سازی لایسنس',
+      });
+    }
+  }
+);
+
 // Helper to check if a key is a real key (not empty or default template placeholder)
 function isValidApiKey(key?: string): boolean {
   if (!key) return false;
@@ -786,10 +816,7 @@ ${JSON.stringify(
 `;
 }
 
-// ==============================================================================
-// Multi-Tier High-Accuracy Persian Translation Engine (Local & Fallback & Normalizer)
-// ==============================================================================
-
+// Persian translation engine and terminology dictionaries
 const TECHNICAL_TERMS: Record<string, string> = {
   'magic method': 'مجیک متد',
   'magic methods': 'مجیک متدها',
@@ -944,7 +971,16 @@ async function translateSingleSentence(text: string, style: string = 'colloquial
   const clean = text.trim();
   if (!clean) return '';
 
-  // 100% Offline execution: translate using local specialized dictionary & dubbing grammar engine
+  const googleFa = await translateWithGoogleFree(clean);
+  if (googleFa) {
+    return postProcessPersian(googleFa, clean, style);
+  }
+
+  const myMemFa = await translateWithMyMemory(clean);
+  if (myMemFa) {
+    return postProcessPersian(myMemFa, clean, style);
+  }
+
   const localFa = translateOfflineLocally(clean, style);
   return postProcessPersian(localFa, clean, style);
 }
@@ -1764,7 +1800,7 @@ function evaluateAndEnrichTranslations(
   });
 }
 
-app.post('/api/translate-subtitles', requireLicense, async (req: Request, res: Response) => {
+app.post('/api/translate-subtitles', async (req: Request, res: Response) => {
   const { lines, style = 'colloquial', context = '', customPrompt } = req.body;
   const config = getApiConfig(req);
 
@@ -1943,7 +1979,7 @@ app.post('/api/translate-subtitles', requireLicense, async (req: Request, res: R
 });
 
 // Dedicated Local/Internal Translation Endpoint
-app.post('/api/translate-fallback', requireLicense, async (req: Request, res: Response) => {
+app.post('/api/translate-fallback', async (req: Request, res: Response) => {
   try {
     const { lines, style = 'colloquial' } = req.body;
     if (!Array.isArray(lines) || lines.length === 0) {
@@ -1966,58 +2002,13 @@ app.post('/api/translate-fallback', requireLicense, async (req: Request, res: Re
 });
 
 // 2.5 Transcribe & Align English Audio with Exact Timestamps
-app.post('/api/transcribe-audio', requireLicense, async (req: Request, res: Response) => {
+app.post('/api/transcribe-audio', async (req: Request, res: Response) => {
   try {
     const { audioBase64, mimeType = 'audio/mp3', totalDuration } = req.body;
     const customKey = req.body.apiKey || (req.headers['x-gemini-api-key'] as string);
 
     if (!audioBase64) {
       return res.status(400).json({ error: 'فایل صوتی ارسال نشده است.' });
-    }
-
-    // Helper: Run local faster-whisper on base64 audio buffer
-    const runOfflineWhisper = async () => {
-      const ext = mimeType.includes('wav') ? 'wav' : 'mp3';
-      const tempAudioFile = path.join(os.tmpdir(), `aud_stt_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`);
-      await fs.promises.writeFile(tempAudioFile, Buffer.from(audioBase64, 'base64'));
-      try {
-        const localSegments = await new Promise<any[]>((resolve, reject) => {
-          const pyProc = spawn('python', ['local_whisper.py', tempAudioFile, 'base']);
-          let stdout = '';
-          let stderr = '';
-          pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
-          pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
-          pyProc.on('close', (code) => {
-            try {
-              const resJson = JSON.parse(stdout.trim());
-              if (resJson.success && Array.isArray(resJson.segments)) {
-                resolve(resJson.segments);
-              } else {
-                reject(new Error(resJson.error || stderr || `Whisper exit code ${code}`));
-              }
-            } catch (err: any) {
-              reject(new Error(`خطا در استخراج با Whisper محلی: ${stdout || stderr}`));
-            }
-          });
-          pyProc.on('error', (err) => reject(new Error(`عدم امکان اجرای پایتون برای Whisper: ${err.message}`)));
-        });
-        await fs.promises.unlink(tempAudioFile).catch(() => {});
-        return localSegments.map((seg, idx) => ({
-          id: idx + 1,
-          start: seg.start,
-          end: seg.end,
-          text: (seg.text || '').trim(),
-        }));
-      } catch (err) {
-        await fs.promises.unlink(tempAudioFile).catch(() => {});
-        throw err;
-      }
-    };
-
-    // If no online API key is supplied, run 100% offline local Whisper
-    if (!customKey && !process.env.GEMINI_API_KEY) {
-      const segments = await runOfflineWhisper();
-      return res.json({ success: true, segments });
     }
 
     const ai = getGenAIClient(customKey);
@@ -2113,7 +2104,7 @@ Rules:
 });
 
 // 3. Generate Persian Audio Speech (TTS) for a Single Subtitle Line
-app.post('/api/tts', requireLicense, async (req: Request, res: Response) => {
+app.post('/api/tts', async (req: Request, res: Response) => {
   const startTime = Date.now();
   try {
     const { text, voice, emotion = '', style = '', persona = 'patient_teacher' } = req.body;
@@ -2305,10 +2296,8 @@ app.post('/api/tts', requireLicense, async (req: Request, res: Response) => {
 });
 
 
-// ==============================================================================
-// Synchronization Engine API: Pitch-Preserving Time Stretching via FFmpeg (Rubber Band / Atempo)
-// ==============================================================================
-app.post('/api/time-stretch-audio', requireLicense, async (req: Request, res: Response) => {
+// Audio time-stretching with pitch preservation
+app.post('/api/time-stretch-audio', async (req: Request, res: Response) => {
   const { audioBase64, tempo = 1.0 } = req.body;
 
   if (!audioBase64 || typeof audioBase64 !== 'string') {
@@ -2390,10 +2379,8 @@ app.post('/api/time-stretch-audio', requireLicense, async (req: Request, res: Re
   }
 });
 
-// ==============================================================================
-// Duration-Aware Text Adaptation & Shortening API
-// ==============================================================================
-app.post('/api/adapt-translation-duration', requireLicense, async (req: Request, res: Response) => {
+// Shorten translated text to match target speech duration
+app.post('/api/adapt-translation-duration', async (req: Request, res: Response) => {
   const { text, targetDuration, style = 'colloquial', customPrompt } = req.body;
   const config = getApiConfig(req);
 
@@ -2470,15 +2457,9 @@ Rules:
   }
 });
 
-// ==============================================================================
-// Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy, high-fidelity audio multiplexing)
-// ==============================================================================
-// ==============================================================================
-// Upload Dubbed WAV Audio Track (Binary Stream - Zero HTTP Header Overhead)
-// ==============================================================================
+// Upload dubbed audio track
 app.post(
   '/api/upload-dubbed-audio',
-  requireLicense,
   express.raw({ type: () => true, limit: '400mb' }),
   async (req: Request, res: Response) => {
     try {
@@ -2488,7 +2469,7 @@ app.post(
       }
 
       const audioId = 'aud_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-      const tempAudioPath = path.join(os.tmpdir(), `${audioId}.wav`);
+      const tempAudioPath = path.join(os.tmpdir(), audioId + '.wav');
       await fs.promises.writeFile(tempAudioPath, audioBuffer);
 
       return res.json({ success: true, audioId, size: audioBuffer.length });
@@ -2499,17 +2480,19 @@ app.post(
   }
 );
 
-// ==============================================================================
-// Final Dubbed MP4 Video Rendering via FFmpeg (-c:v copy) & Python Fallback
-// ==============================================================================
+// Render final dubbed MP4 with optional intro and watermark
 app.post(
   '/api/render-dubbed-video',
-  requireLicense,
+  requireValidLicense,
   express.raw({ type: ['multipart/form-data', 'application/octet-stream', 'video/*', '*/*'], limit: '800mb' }),
   async (req: Request, res: Response) => {
     const audioId = (req.query.audioId as string) || '';
     const rawAudioBase64 = (req.headers['x-audio-base64'] as string) || '';
     const outputName = (req.query.outputName as string) || 'persian_dubbed_video';
+    const includeIntro = req.query.includeIntro !== 'false';
+    const includeLogo = req.query.includeLogo !== 'false';
+    const preset = (req.query.preset as string) || 'medium';
+
     const tempId = 'mux_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
     const tempVideoPath = path.join(os.tmpdir(), `${tempId}_video.mp4`);
     let tempAudioPath = audioId ? path.join(os.tmpdir(), `${audioId}.wav`) : '';
@@ -2535,56 +2518,72 @@ app.post(
         return res.status(400).json({ success: false, error: 'ترک صوتی دوبله ارسال نشده است.' });
       }
 
+      console.log(`[Video Rendering] Starting dubbed video render: includeIntro=${includeIntro}, includeLogo=${includeLogo}, preset=${preset}`);
+
       let muxSuccess = false;
-      const ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
 
-      // 1. First attempt: Direct System FFmpeg (-c:v copy, high fidelity audio multiplexing)
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const proc = spawn(ffmpegBin, [
-            '-y',
-            '-i', tempVideoPath,
-            '-i', tempAudioPath,
-            '-map', '0:v:0',
-            '-map', '1:a:0',
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-b:a', '192k',
-            '-shortest',
-            '-movflags', '+faststart',
-            tempOutputPath,
-          ]);
+      // 1. If both intro and logo are disabled, attempt fast stream copy first
+      if (!includeIntro && !includeLogo) {
+        const ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const proc = spawn(ffmpegBin, [
+              '-y',
+              '-i', tempVideoPath,
+              '-i', tempAudioPath,
+              '-map', '0:v:0',
+              '-map', '1:a:0',
+              '-c:v', 'copy',
+              '-c:a', 'aac',
+              '-b:a', '192k',
+              '-shortest',
+              '-movflags', '+faststart',
+              tempOutputPath,
+            ]);
 
-          let stderr = '';
-          proc.stderr.on('data', (d) => { stderr += d.toString(); });
-          proc.on('close', (code) => {
-            if (code === 0 && fs.existsSync(tempOutputPath) && fs.statSync(tempOutputPath).size > 1024) {
-              resolve();
-            } else {
-              reject(new Error(`FFmpeg exit ${code}: ${stderr.slice(-300)}`));
-            }
+            let stderr = '';
+            proc.stderr.on('data', (d) => { stderr += d.toString(); });
+            proc.on('close', (code) => {
+              if (code === 0 && fs.existsSync(tempOutputPath) && fs.statSync(tempOutputPath).size > 1024) {
+                resolve();
+              } else {
+                reject(new Error(`FFmpeg exit ${code}: ${stderr.slice(-300)}`));
+              }
+            });
+            proc.on('error', (err) => reject(err));
           });
-          proc.on('error', (err) => reject(err));
-        });
-        muxSuccess = true;
-      } catch (ffErr: any) {
-        console.warn('[Direct FFmpeg Muxing Warning]:', ffErr.message);
+          muxSuccess = true;
+          console.log('[Video Rendering] Fast stream copy succeeded.');
+        } catch (ffErr: any) {
+          console.warn('[Direct FFmpeg Muxing Warning]:', ffErr.message);
+        }
       }
 
-      // 2. Second attempt: Python Muxer Fallback (mux_video.py with PyAV / FFmpeg)
+      // 2. Main Branding & Dubbing Pipeline via mux_video.py (Intro + Dubbed Audio + Normalization + Logo)
       if (!muxSuccess || !fs.existsSync(tempOutputPath)) {
-        console.log('[Python Muxer] Running python mux_video.py fallback...');
+        console.log('[Python Branding Muxer] Running python mux_video.py...');
+        const pyArgs = [
+          path.join(__dirname, 'mux_video.py'),
+          '--video', tempVideoPath,
+          '--audio', tempAudioPath,
+          '--output', tempOutputPath,
+          '--preset', preset,
+        ];
+        if (!includeIntro) pyArgs.push('--no-intro');
+        if (!includeLogo) pyArgs.push('--no-logo');
+
         await new Promise<void>((resolve, reject) => {
-          const pyProc = spawn('python', ['mux_video.py', tempVideoPath, tempAudioPath, tempOutputPath]);
+          const pyProc = spawn('python', pyArgs, { cwd: __dirname });
           let stdout = '';
           let stderr = '';
           pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
           pyProc.stderr.on('data', (d) => { stderr += d.toString(); });
           pyProc.on('close', (code) => {
-            if (fs.existsSync(tempOutputPath) && fs.statSync(tempOutputPath).size > 1024) {
+            if (code === 0 && fs.existsSync(tempOutputPath) && fs.statSync(tempOutputPath).size > 1024) {
+              console.log('[Python Branding Muxer] Completed successfully:', stdout.trim());
               resolve();
             } else {
-              reject(new Error(`خطای پایتون (${code}): ${stdout || stderr}`));
+              reject(new Error(`خطای رندر ویدیو با پایتون (${code}): ${stdout || stderr}`));
             }
           });
           pyProc.on('error', (err) => reject(new Error(`عدم امکان اجرای پایتون: ${err.message}`)));
@@ -2607,10 +2606,8 @@ app.post(
   }
 );
 
-// ==============================================================================
-// AI Cloud Timeline Synchronization & Conflict Resolver API (OpenAI GPT-6 Luna / Hormouz / Gemini)
-// ==============================================================================
-app.post('/api/ai-sync-timeline', requireLicense, async (req: Request, res: Response) => {
+// AI timeline synchronization and subtitle timing adjuster
+app.post('/api/ai-sync-timeline', async (req: Request, res: Response) => {
   const { subtitles = [], model, maxAllowedSpeed = 1.25, minPauseSec = 0.12 } = req.body;
   const config = getApiConfig(req);
   const targetModel = model || config.translationModel || 'openai/gpt-6-luna';
