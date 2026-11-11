@@ -3,6 +3,8 @@ import { SubtitleItem } from './types/dubbing';
 import { Header } from './components/Header';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { LicenseModal } from './components/LicenseModal';
+import { UpdateModal } from './components/UpdateModal';
+import { fetchUpdateStatus } from './utils/updateManager';
 import { FileUploaderSection } from './components/FileUploaderSection';
 import { TranslationStudio } from './components/TranslationStudio';
 import { VoiceSynthesisStudio } from './components/VoiceSynthesisStudio';
@@ -45,6 +47,8 @@ export default function App() {
   const [hasEnvKey, setHasEnvKey] = useState<boolean>(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
   const [isLicenseModalOpen, setIsLicenseModalOpen] = useState<boolean>(false);
+  const [isUpdateModalOpen, setIsUpdateModalOpen] = useState<boolean>(false);
+  const [hasUpdateAvailable, setHasUpdateAvailable] = useState<boolean>(false);
   const [licenseStatus, setLicenseStatus] = useState<{
     isLicensed: boolean;
     customerName?: string;
@@ -72,6 +76,13 @@ export default function App() {
 
   useEffect(() => {
     checkLicense();
+    fetchUpdateStatus()
+      .then((data) => {
+        if (data?.updateInfo?.updateAvailable) {
+          setHasUpdateAvailable(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   // Subtitles and cues
@@ -234,6 +245,8 @@ export default function App() {
         onOpenLicenseModal={() => setIsLicenseModalOpen(true)}
         isLicensed={Boolean(licenseStatus?.isLicensed)}
         customerName={licenseStatus?.customerName}
+        onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
+        hasUpdateAvailable={hasUpdateAvailable}
       />
 
       {/* Main Studio Container */}
@@ -514,6 +527,13 @@ export default function App() {
         onLicenseChanged={() => {
           checkLicense();
         }}
+      />
+
+      {/* Automatic Update Management Modal */}
+      <UpdateModal
+        isOpen={isUpdateModalOpen}
+        onClose={() => setIsUpdateModalOpen(false)}
+        onUpdateAvailableBadge={setHasUpdateAvailable}
       />
     </div>
   );

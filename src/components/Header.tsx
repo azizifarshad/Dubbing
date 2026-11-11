@@ -1,5 +1,5 @@
 import React from 'react';
-import { Key, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert } from 'lucide-react';
+import { Key, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Download, RefreshCw } from 'lucide-react';
 
 interface HeaderProps {
   onOpenApiKeyModal: () => void;
@@ -9,6 +9,8 @@ interface HeaderProps {
   onOpenLicenseModal?: () => void;
   isLicensed?: boolean;
   customerName?: string;
+  onOpenUpdateModal?: () => void;
+  hasUpdateAvailable?: boolean;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -19,6 +21,8 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLicenseModal,
   isLicensed = false,
   customerName = '',
+  onOpenUpdateModal,
+  hasUpdateAvailable = false,
 }) => {
   return (
     <header className="border-b border-slate-800/80 bg-[#090d11]/85 backdrop-blur-md sticky top-0 z-30 transition-all duration-200">
@@ -46,6 +50,33 @@ export const Header: React.FC<HeaderProps> = ({
                 <span className="font-semibold text-emerald-400">{readyVoicesCount}</span>
               </div>
             </div>
+          )}
+
+          {/* Automatic Update Button */}
+          {onOpenUpdateModal && (
+            <button
+              type="button"
+              onClick={onOpenUpdateModal}
+              className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-semibold transition-all duration-200 border cursor-pointer relative ${
+                hasUpdateAvailable
+                  ? 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.3)] animate-pulse'
+                  : 'bg-slate-800/40 hover:bg-slate-800/80 text-slate-300 border-slate-700/60'
+              }`}
+              title="بررسی و مدیریت به‌روزرسانی‌های نرم‌افزار"
+            >
+              {hasUpdateAvailable ? (
+                <>
+                  <Download className="w-4 h-4 text-emerald-400" />
+                  <span>آپدیت جدید!</span>
+                  <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full border-2 border-[#090d11]"></span>
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-4 h-4 text-slate-400" />
+                  <span className="hidden sm:inline">نسخه و آپدیت</span>
+                </>
+              )}
+            </button>
           )}
 
           {/* Offline Hardware-Bound License Button */}

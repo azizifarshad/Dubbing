@@ -1,9 +1,18 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Threading;
 using System.Windows.Forms;
+using System.Reflection;
+
+[assembly: AssemblyTitle("Dubbing Vidans")]
+[assembly: AssemblyDescription("Dubbing Vidans Studio Launcher")]
+[assembly: AssemblyCompany("Vidans Studio")]
+[assembly: AssemblyProduct("Dubbing Vidans")]
+[assembly: AssemblyCopyright("Copyright © Vidans Studio 2026")]
+[assembly: AssemblyVersion("1.0.1.0")]
+[assembly: AssemblyFileVersion("1.0.1.0")]
 
 namespace DubbingVidans
 {
@@ -198,6 +207,11 @@ namespace DubbingVidans
 
             psi.EnvironmentVariables["NODE_ENV"] = "production";
             psi.EnvironmentVariables["PORT"] = "3000";
+
+            string runtimePython = Path.Combine(appDir, "runtime", "python");
+            string runtimeFfmpeg = Path.Combine(appDir, "runtime", "ffmpeg");
+            string currentPath = Environment.GetEnvironmentVariable("PATH") ?? "";
+            psi.EnvironmentVariables["PATH"] = runtimePython + ";" + runtimeFfmpeg + ";" + currentPath;
 
             if (File.Exists(serverCjs))
             {

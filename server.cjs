@@ -18803,14 +18803,14 @@ var require_etag = __commonJS({
   "node_modules/etag/index.js"(exports2, module2) {
     "use strict";
     module2.exports = etag;
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var Stats = require("fs").Stats;
     var toString = Object.prototype.toString;
     function entitytag(entity) {
       if (entity.length === 0) {
         return '"0-2jmj7l5rSw0yVb/vlWAYkK/YBwk"';
       }
-      var hash = crypto4.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
+      var hash = crypto5.createHash("sha1").update(entity, "utf8").digest("base64").substring(0, 27);
       var len = typeof entity === "string" ? Buffer.byteLength(entity, "utf8") : entity.length;
       return '"' + len.toString(16) + "-" + hash + '"';
     }
@@ -21719,11 +21719,11 @@ var require_request = __commonJS({
 // node_modules/cookie-signature/index.js
 var require_cookie_signature = __commonJS({
   "node_modules/cookie-signature/index.js"(exports2) {
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     exports2.sign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Cookie value must be provided as a string.");
       if (null == secret) throw new TypeError("Secret key must be provided.");
-      return val + "." + crypto4.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
+      return val + "." + crypto5.createHmac("sha256", secret).update(val).digest("base64").replace(/\=+$/, "");
     };
     exports2.unsign = function(val, secret) {
       if ("string" !== typeof val) throw new TypeError("Signed cookie string must be provided.");
@@ -21732,7 +21732,7 @@ var require_cookie_signature = __commonJS({
       return sha1(mac) == sha1(val) ? str : false;
     };
     function sha1(str) {
-      return crypto4.createHash("sha1").update(str).digest("hex");
+      return crypto5.createHash("sha1").update(str).digest("hex");
     }
   }
 });
@@ -22706,7 +22706,7 @@ var require_main = __commonJS({
     var fs6 = require("fs");
     var path5 = require("path");
     var os3 = require("os");
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var TIPS = [
       "\u25C8 encrypted .env [www.dotenvx.com]",
       "\u25C8 secrets for agents [www.dotenvx.com]",
@@ -22950,7 +22950,7 @@ var require_main = __commonJS({
       const authTag = ciphertext.subarray(-16);
       ciphertext = ciphertext.subarray(12, -16);
       try {
-        const aesgcm = crypto4.createDecipheriv("aes-256-gcm", key, nonce);
+        const aesgcm = crypto5.createDecipheriv("aes-256-gcm", key, nonce);
         aesgcm.setAuthTag(authTag);
         return `${aesgcm.update(ciphertext)}${aesgcm.final()}`;
       } catch (error) {
@@ -34680,22 +34680,22 @@ var require_crypto2 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.NodeCrypto = void 0;
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var NodeCrypto = class {
       async sha256DigestBase64(str) {
-        return crypto4.createHash("sha256").update(str).digest("base64");
+        return crypto5.createHash("sha256").update(str).digest("base64");
       }
       randomBytesBase64(count) {
-        return crypto4.randomBytes(count).toString("base64");
+        return crypto5.randomBytes(count).toString("base64");
       }
       async verify(pubkey, data, signature) {
-        const verifier = crypto4.createVerify("RSA-SHA256");
+        const verifier = crypto5.createVerify("RSA-SHA256");
         verifier.update(data);
         verifier.end();
         return verifier.verify(pubkey, signature, "base64");
       }
       async sign(privateKey, data) {
-        const signer = crypto4.createSign("RSA-SHA256");
+        const signer = crypto5.createSign("RSA-SHA256");
         signer.update(data);
         signer.end();
         return signer.sign(privateKey, "base64");
@@ -34713,7 +34713,7 @@ var require_crypto2 = __commonJS({
        *   string in hexadecimal encoding.
        */
       async sha256DigestHex(str) {
-        return crypto4.createHash("sha256").update(str).digest("hex");
+        return crypto5.createHash("sha256").update(str).digest("hex");
       }
       /**
        * Computes the HMAC hash of a message using the provided crypto key and the
@@ -34725,7 +34725,7 @@ var require_crypto2 = __commonJS({
        */
       async signWithHmacSha256(key, msg) {
         const cryptoKey = typeof key === "string" ? key : toBuffer(key);
-        return toArrayBuffer(crypto4.createHmac("sha256", cryptoKey).update(msg).digest());
+        return toArrayBuffer(crypto5.createHmac("sha256", cryptoKey).update(msg).digest());
       }
     };
     exports2.NodeCrypto = NodeCrypto;
@@ -35580,10 +35580,10 @@ var require_oauth2client = __commonJS({
        * https://github.com/googleapis/google-auth-library-nodejs/blob/main/samples/oauth2-codeVerifier.js
        */
       async generateCodeVerifierAsync() {
-        const crypto4 = (0, crypto_1.createCrypto)();
-        const randomString = crypto4.randomBytesBase64(96);
+        const crypto5 = (0, crypto_1.createCrypto)();
+        const randomString = crypto5.randomBytesBase64(96);
         const codeVerifier = randomString.replace(/\+/g, "~").replace(/=/g, "_").replace(/\//g, "-");
-        const unencodedCodeChallenge = await crypto4.sha256DigestBase64(codeVerifier);
+        const unencodedCodeChallenge = await crypto5.sha256DigestBase64(codeVerifier);
         const codeChallenge = unencodedCodeChallenge.split("=")[0].replace(/\+/g, "-").replace(/\//g, "_");
         return { codeVerifier, codeChallenge };
       }
@@ -36024,7 +36024,7 @@ var require_oauth2client = __commonJS({
        * @return Returns a promise resolving to LoginTicket on verification.
        */
       async verifySignedJwtWithCertsAsync(jwt, certs, requiredAudience, issuers, maxExpiry) {
-        const crypto4 = (0, crypto_1.createCrypto)();
+        const crypto5 = (0, crypto_1.createCrypto)();
         if (!maxExpiry) {
           maxExpiry = _OAuth2Client.DEFAULT_MAX_TOKEN_LIFETIME_SECS_;
         }
@@ -36037,7 +36037,7 @@ var require_oauth2client = __commonJS({
         let envelope;
         let payload;
         try {
-          envelope = JSON.parse(crypto4.decodeBase64StringUtf8(segments[0]));
+          envelope = JSON.parse(crypto5.decodeBase64StringUtf8(segments[0]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token envelope: ${segments[0]}': ${err.message}`;
@@ -36048,7 +36048,7 @@ var require_oauth2client = __commonJS({
           throw new Error("Can't parse token envelope: " + segments[0]);
         }
         try {
-          payload = JSON.parse(crypto4.decodeBase64StringUtf8(segments[1]));
+          payload = JSON.parse(crypto5.decodeBase64StringUtf8(segments[1]));
         } catch (err) {
           if (err instanceof Error) {
             err.message = `Can't parse token payload '${segments[0]}`;
@@ -36065,7 +36065,7 @@ var require_oauth2client = __commonJS({
         if (envelope.alg === "ES256") {
           signature = formatEcdsa.joseToDer(signature, "ES256").toString("base64");
         }
-        const verified = await crypto4.verify(cert, signed, signature);
+        const verified = await crypto5.verify(cert, signed, signature);
         if (!verified) {
           throw new Error("Invalid token signature: " + jwt);
         }
@@ -36440,14 +36440,14 @@ var require_buffer_equal_constant_time = __commonJS({
 var require_jwa = __commonJS({
   "node_modules/jwa/index.js"(exports2, module2) {
     var Buffer4 = require_safe_buffer().Buffer;
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var formatEcdsa = require_ecdsa_sig_formatter();
     var util = require("util");
     var MSG_INVALID_ALGORITHM = '"%s" is not a valid algorithm.\n  Supported algorithms are:\n  "HS256", "HS384", "HS512", "RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512" and "none".';
     var MSG_INVALID_SECRET = "secret must be a string or buffer";
     var MSG_INVALID_VERIFIER_KEY = "key must be a string or a buffer";
     var MSG_INVALID_SIGNER_KEY = "key must be a string, a buffer or an object";
-    var supportsKeyObjects = typeof crypto4.createPublicKey === "function";
+    var supportsKeyObjects = typeof crypto5.createPublicKey === "function";
     if (supportsKeyObjects) {
       MSG_INVALID_VERIFIER_KEY += " or a KeyObject";
       MSG_INVALID_SECRET += "or a KeyObject";
@@ -36537,17 +36537,17 @@ var require_jwa = __commonJS({
       return function sign(thing, secret) {
         checkIsSecretKey(secret);
         thing = normalizeInput(thing);
-        var hmac = crypto4.createHmac("sha" + bits, secret);
+        var hmac = crypto5.createHmac("sha" + bits, secret);
         var sig = (hmac.update(thing), hmac.digest("base64"));
         return fromBase64(sig);
       };
     }
     var bufferEqual;
-    var timingSafeEqual = "timingSafeEqual" in crypto4 ? function timingSafeEqual2(a, b) {
+    var timingSafeEqual = "timingSafeEqual" in crypto5 ? function timingSafeEqual2(a, b) {
       if (a.byteLength !== b.byteLength) {
         return false;
       }
-      return crypto4.timingSafeEqual(a, b);
+      return crypto5.timingSafeEqual(a, b);
     } : function timingSafeEqual2(a, b) {
       if (!bufferEqual) {
         bufferEqual = require_buffer_equal_constant_time();
@@ -36564,7 +36564,7 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto4.createSign("RSA-SHA" + bits);
+        var signer = crypto5.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign(privateKey, "base64"));
         return fromBase64(sig);
       };
@@ -36574,7 +36574,7 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto4.createVerify("RSA-SHA" + bits);
+        var verifier = crypto5.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify(publicKey, signature, "base64");
       };
@@ -36583,11 +36583,11 @@ var require_jwa = __commonJS({
       return function sign(thing, privateKey) {
         checkIsPrivateKey(privateKey);
         thing = normalizeInput(thing);
-        var signer = crypto4.createSign("RSA-SHA" + bits);
+        var signer = crypto5.createSign("RSA-SHA" + bits);
         var sig = (signer.update(thing), signer.sign({
           key: privateKey,
-          padding: crypto4.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto4.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
         }, "base64"));
         return fromBase64(sig);
       };
@@ -36597,12 +36597,12 @@ var require_jwa = __commonJS({
         checkIsPublicKey(publicKey);
         thing = normalizeInput(thing);
         signature = toBase64(signature);
-        var verifier = crypto4.createVerify("RSA-SHA" + bits);
+        var verifier = crypto5.createVerify("RSA-SHA" + bits);
         verifier.update(thing);
         return verifier.verify({
           key: publicKey,
-          padding: crypto4.constants.RSA_PKCS1_PSS_PADDING,
-          saltLength: crypto4.constants.RSA_PSS_SALTLEN_DIGEST
+          padding: crypto5.constants.RSA_PKCS1_PSS_PADDING,
+          saltLength: crypto5.constants.RSA_PSS_SALTLEN_DIGEST
         }, signature, "base64");
       };
     }
@@ -39178,14 +39178,14 @@ var require_awsrequestsigner = __commonJS({
       }
     };
     exports2.AwsRequestSigner = AwsRequestSigner;
-    async function sign(crypto4, key, msg) {
-      return await crypto4.signWithHmacSha256(key, msg);
+    async function sign(crypto5, key, msg) {
+      return await crypto5.signWithHmacSha256(key, msg);
     }
-    async function getSigningKey(crypto4, key, dateStamp, region, serviceName) {
-      const kDate = await sign(crypto4, `AWS4${key}`, dateStamp);
-      const kRegion = await sign(crypto4, kDate, region);
-      const kService = await sign(crypto4, kRegion, serviceName);
-      const kSigning = await sign(crypto4, kService, "aws4_request");
+    async function getSigningKey(crypto5, key, dateStamp, region, serviceName) {
+      const kDate = await sign(crypto5, `AWS4${key}`, dateStamp);
+      const kRegion = await sign(crypto5, kDate, region);
+      const kService = await sign(crypto5, kRegion, serviceName);
+      const kSigning = await sign(crypto5, kService, "aws4_request");
       return kSigning;
     }
     async function generateAuthenticationHeaderMap(options) {
@@ -40151,7 +40151,7 @@ var require_gdchclient = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.GdchClient = exports2.GDCH_SERVICE_ACCOUNT_TYPE = void 0;
-    var crypto4 = require("crypto");
+    var crypto5 = require("crypto");
     var fs6 = require("fs");
     var https2 = require("https");
     var oauth2client_1 = require_oauth2client();
@@ -40342,7 +40342,7 @@ var require_gdchclient = __commonJS({
         const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
         const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
         const signingInput = `${encodedHeader}.${encodedPayload}`;
-        const signature = crypto4.sign("sha256", Buffer.from(signingInput), {
+        const signature = crypto5.sign("sha256", Buffer.from(signingInput), {
           key: this.privateKey,
           dsaEncoding: "ieee-p1363"
         });
@@ -41205,24 +41205,24 @@ var require_googleauth = __commonJS({
           const signed = await client.sign(data);
           return signed.signedBlob;
         }
-        const crypto4 = (0, crypto_1.createCrypto)();
+        const crypto5 = (0, crypto_1.createCrypto)();
         if (client instanceof jwtclient_1.JWT && client.key) {
-          const sign = await crypto4.sign(client.key, data);
+          const sign = await crypto5.sign(client.key, data);
           return sign;
         }
         const creds = await this.getCredentials();
         if (!creds.client_email) {
           throw new Error("Cannot sign data without `client_email`.");
         }
-        return this.signBlob(crypto4, creds.client_email, data, endpoint);
+        return this.signBlob(crypto5, creds.client_email, data, endpoint);
       }
-      async signBlob(crypto4, emailOrUniqueId, data, endpoint) {
+      async signBlob(crypto5, emailOrUniqueId, data, endpoint) {
         const url = new URL(endpoint + `${emailOrUniqueId}:signBlob`);
         const res = await this.request({
           method: "POST",
           url: url.href,
           data: {
-            payload: crypto4.encodeBase64StringUtf8(data)
+            payload: crypto5.encodeBase64StringUtf8(data)
           },
           retry: true,
           retryConfig: {
@@ -45329,6 +45329,7 @@ __export(server_exports, {
 });
 module.exports = __toCommonJS(server_exports);
 var import_express = __toESM(require_express2(), 1);
+var import_crypto3 = __toESM(require("crypto"), 1);
 var import_dotenv = __toESM(require_main(), 1);
 var import_path3 = __toESM(require("path"), 1);
 var import_fs4 = __toESM(require("fs"), 1);
@@ -70061,7 +70062,7 @@ function generateActivationRequest() {
     deviceSignature: signature.toString("base64")
   };
 }
-function verifyLicense(licenseData) {
+function verifyLicense(licenseData, customAuthorityPublicKeyPem) {
   try {
     if (!licenseData || !licenseData.payload || !licenseData.authoritySignature) {
       return {
@@ -70082,7 +70083,7 @@ function verifyLicense(licenseData) {
       };
     }
     const canonicalStr = buildCanonicalLicenseString(payload);
-    const authorityPubKey = import_crypto2.default.createPublicKey(MASTER_AUTHORITY_PUBLIC_KEY_PEM);
+    const authorityPubKey = import_crypto2.default.createPublicKey(customAuthorityPublicKeyPem || MASTER_AUTHORITY_PUBLIC_KEY_PEM);
     const signatureBuf = Buffer.from(licenseData.authoritySignature, "base64");
     const isSignatureValid = import_crypto2.default.verify(
       null,
@@ -70141,7 +70142,7 @@ function verifyLicense(licenseData) {
     };
   }
 }
-function checkCurrentLicense() {
+function checkCurrentLicense(customAuthorityPublicKeyPem) {
   const sharedDir = getSharedDataDir();
   const vidansLicPath = import_path2.default.join(sharedDir, "license.vidanslic");
   const legacyLicPath = import_path2.default.join(sharedDir, "license.dblic");
@@ -70162,7 +70163,7 @@ function checkCurrentLicense() {
   try {
     const raw = import_fs3.default.readFileSync(activePath, "utf8");
     const parsed = JSON.parse(raw);
-    return verifyLicense(parsed);
+    return verifyLicense(parsed, customAuthorityPublicKeyPem);
   } catch (err) {
     return {
       isValid: false,
@@ -70172,10 +70173,10 @@ function checkCurrentLicense() {
     };
   }
 }
-function installLicense(licenseContentStr) {
+function installLicense(licenseContentStr, customAuthorityPublicKeyPem) {
   try {
     const parsed = JSON.parse(licenseContentStr);
-    const result = verifyLicense(parsed);
+    const result = verifyLicense(parsed, customAuthorityPublicKeyPem);
     if (!result.isValid) {
       return result;
     }
@@ -70203,9 +70204,65 @@ function installLicense(licenseContentStr) {
   }
 }
 
+// src/utils/updateConfig.ts
+var UPDATE_APP_NAME = "Dubbing Vidans";
+var UPDATE_AUTHORITY_PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAzVzumHn/L9bOwqqpJ5e9+8qFdh6/dQNwAJLIOL3LGgg=
+-----END PUBLIC KEY-----`;
+function buildCanonicalManifestString(appName, version, channel, osName, arch, sha256Hash, fileSize, minVersion = "1.0.0") {
+  return [
+    `APP=${appName}`,
+    `VERSION=${(version || "").replace(/^v/, "").trim()}`,
+    `CHANNEL=${channel}`,
+    `OS=${osName}`,
+    `ARCH=${arch}`,
+    `SHA256=${sha256Hash.toLowerCase().trim()}`,
+    `SIZE=${fileSize}`,
+    `MIN=${(minVersion || "1.0.0").replace(/^v/, "").trim()}`
+  ].join("|");
+}
+
 // server.ts
 import_dotenv.default.config();
 var appDir = typeof __dirname !== "undefined" ? __dirname : process.cwd();
+function getFfmpegBin() {
+  const localCandidates = [
+    import_path3.default.join(appDir, "runtime", "ffmpeg", "ffmpeg.exe"),
+    import_path3.default.join(appDir, "ffmpeg.exe"),
+    import_path3.default.join(process.cwd(), "runtime", "ffmpeg", "ffmpeg.exe"),
+    import_path3.default.join(process.cwd(), "ffmpeg.exe")
+  ];
+  for (const p of localCandidates) {
+    if (import_fs4.default.existsSync(p)) return p;
+  }
+  if (import_fs4.default.existsSync("/usr/bin/ffmpeg")) return "/usr/bin/ffmpeg";
+  return "ffmpeg";
+}
+function getFfprobeBin() {
+  const localCandidates = [
+    import_path3.default.join(appDir, "runtime", "ffmpeg", "ffprobe.exe"),
+    import_path3.default.join(appDir, "ffprobe.exe"),
+    import_path3.default.join(process.cwd(), "runtime", "ffmpeg", "ffprobe.exe"),
+    import_path3.default.join(process.cwd(), "ffprobe.exe")
+  ];
+  for (const p of localCandidates) {
+    if (import_fs4.default.existsSync(p)) return p;
+  }
+  if (import_fs4.default.existsSync("/usr/bin/ffprobe")) return "/usr/bin/ffprobe";
+  return "ffprobe";
+}
+function getPythonBin() {
+  const localCandidates = [
+    import_path3.default.join(appDir, "runtime", "python", "python.exe"),
+    import_path3.default.join(appDir, "python.exe"),
+    import_path3.default.join(process.cwd(), "runtime", "python", "python.exe"),
+    import_path3.default.join(process.cwd(), "python.exe")
+  ];
+  for (const p of localCandidates) {
+    if (import_fs4.default.existsSync(p)) return p;
+  }
+  return "python";
+}
 var app = (0, import_express.default)();
 var PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3e3;
 app.post(
@@ -70226,10 +70283,7 @@ app.post(
         });
       }
       await import_fs4.default.promises.writeFile(tempInputPath, fileBuffer);
-      let ffmpegBin = "ffmpeg";
-      if (import_fs4.default.existsSync("/usr/bin/ffmpeg")) {
-        ffmpegBin = "/usr/bin/ffmpeg";
-      }
+      let ffmpegBin = getFfmpegBin();
       await new Promise((resolve, reject) => {
         const proc = (0, import_child_process2.spawn)(ffmpegBin, [
           "-i",
@@ -70301,8 +70355,8 @@ app.post(
         });
       }
       await import_fs4.default.promises.writeFile(tempInputPath, fileBuffer);
-      let ffmpegBin = import_fs4.default.existsSync("/usr/bin/ffmpeg") ? "/usr/bin/ffmpeg" : "ffmpeg";
-      let ffprobeBin = import_fs4.default.existsSync("/usr/bin/ffprobe") ? "/usr/bin/ffprobe" : "ffprobe";
+      let ffmpegBin = getFfmpegBin();
+      let ffprobeBin = getFfprobeBin();
       const probeResult = await new Promise((resolve) => {
         const proc = (0, import_child_process2.spawn)(ffprobeBin, [
           "-v",
@@ -70426,7 +70480,7 @@ app.post(
         });
       }
       await import_fs4.default.promises.writeFile(tempInputVideo, fileBuffer);
-      let ffmpegBin = import_fs4.default.existsSync("/usr/bin/ffmpeg") ? "/usr/bin/ffmpeg" : "ffmpeg";
+      let ffmpegBin = getFfmpegBin();
       await new Promise((resolve, reject) => {
         const proc = (0, import_child_process2.spawn)(ffmpegBin, [
           "-i",
@@ -70461,7 +70515,7 @@ app.post(
         console.log("[Local Whisper] Transcribing speech locally with Faster-Whisper on user PC (Zero cloud STT cost)...");
         try {
           const localSegments = await new Promise((resolve, reject) => {
-            const pyProc = (0, import_child_process2.spawn)("python", ["local_whisper.py", tempAudioMp3, "base"]);
+            const pyProc = (0, import_child_process2.spawn)(getPythonBin(), ["local_whisper.py", tempAudioMp3, "base"]);
             let stdout = "";
             let stderr = "";
             pyProc.stdout.on("data", (d) => {
@@ -71151,97 +71205,142 @@ function extractJsonFromLlmResponse(rawContent) {
   console.error("[Hormouz Translate Parse Error] Raw text received from model:\n", rawContent.slice(0, 1e3));
   throw new Error("\u0642\u0627\u0644\u0628 \u067E\u0627\u0633\u062E \u062A\u0631\u062C\u0645\u0647 \u0647\u0631\u0645\u0632 \u0645\u0639\u062A\u0628\u0631 \u0646\u0628\u0648\u062F (\u0645\u062A\u0646 JSON \u0645\u0639\u062A\u0628\u0631 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F).");
 }
+async function translateHormouzChunk(chunk, style, config, customPrompt) {
+  const promptText = buildPromptForLines(chunk, style, customPrompt);
+  let lastErr = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      console.log(`[Hormouz Translate] Attempt ${attempt + 1}/3 for lines ${chunk[0].id}..${chunk[chunk.length - 1].id} with model "${config.translationModel}"...`);
+      const res = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${config.apiKey}`
+        },
+        body: JSON.stringify({
+          model: config.translationModel,
+          messages: [
+            {
+              role: "system",
+              content: 'You are an expert English-to-Persian translator for video dubbing. You MUST reply with valid JSON only adhering strictly to: {"translations": [{"id": 1, "farsiText": "...", "characterEmotion": "\u0637\u0628\u06CC\u0639\u06CC \u0648 \u0631\u0633\u0627", "suggestedGender": "male"}]}. Never output conversational chatter, markdown text, or explanations outside the JSON.'
+            },
+            {
+              role: "user",
+              content: promptText
+            }
+          ],
+          temperature: 0.3,
+          max_tokens: 4096
+        }),
+        signal: AbortSignal.timeout(6e4)
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        let parsedErr;
+        try {
+          parsedErr = JSON.parse(errText);
+        } catch {
+        }
+        const msg = parsedErr?.error?.message || parsedErr?.message || errText;
+        const status = res.status;
+        const fatalError = new Error(`\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u0647\u0631\u0645\u0632 (${status}): ${msg}`);
+        if (status === 400 || status === 401 || status === 402 || status === 403 || status === 404) {
+          throw fatalError;
+        }
+        throw fatalError;
+      }
+      const responseData = await res.json();
+      if (responseData?.error) {
+        const errMsg = responseData.error.message || JSON.stringify(responseData.error);
+        throw new Error(`\u062E\u0637\u0627\u06CC \u0627\u0631\u0627\u0626\u0647\u200C\u062F\u0647\u0646\u062F\u0647 \u0647\u0631\u0645\u0632: ${errMsg}`);
+      }
+      const choice = responseData?.choices?.[0];
+      if (!choice) {
+        throw new Error("\u0633\u0631\u0648\u0631 \u0647\u0631\u0645\u0632 \u067E\u0627\u0633\u062E\u06CC \u0628\u062F\u0648\u0646 \u0641\u06CC\u0644\u062F \u0627\u0646\u062A\u062E\u0627\u0628 (choices) \u0628\u0627\u0632\u06AF\u0631\u062F\u0627\u0646\u062F.");
+      }
+      if (choice?.message?.refusal) {
+        throw new Error(`\u062F\u0631\u062E\u0648\u0627\u0633\u062A \u062A\u0631\u062C\u0645\u0647 \u062A\u0648\u0633\u0637 \u0641\u06CC\u0644\u062A\u0631 \u0645\u062D\u062A\u0648\u0627\u06CC \u0645\u062F\u0644 \u0631\u062F \u0634\u062F: ${choice.message.refusal}`);
+      }
+      const rawContent = (choice?.message?.content || choice?.text || choice?.message?.reasoning_content || choice?.message?.reasoning || choice?.message?.thought || choice?.delta?.content || "").trim();
+      if (!rawContent) {
+        if (choice?.finish_reason === "length") {
+          throw new Error("\u067E\u0627\u0633\u062E \u0645\u062F\u0644 \u0628\u0647 \u062F\u0644\u06CC\u0644 \u0645\u062D\u062F\u0648\u062F\u06CC\u062A \u0633\u0642\u0641 \u062A\u0648\u06A9\u0646 \u0646\u0627\u0642\u0635 \u0645\u0627\u0646\u062F (finish_reason: length).");
+        }
+        throw new Error("\u067E\u0627\u0633\u062E \u062F\u0631\u06CC\u0627\u0641\u062A\u06CC \u0627\u0632 \u0645\u062F\u0644 \u0647\u0631\u0645\u0632 \u062E\u0627\u0644\u06CC \u0628\u0648\u062F \u06CC\u0627 \u0633\u0627\u062E\u062A\u0627\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u062F\u0627\u0634\u062A.");
+      }
+      const parsed = extractJsonFromLlmResponse(rawContent);
+      let rawList = [];
+      if (Array.isArray(parsed?.translations)) {
+        rawList = parsed.translations;
+      } else if (Array.isArray(parsed)) {
+        rawList = parsed;
+      } else if (Array.isArray(parsed?.result)) {
+        rawList = parsed.result;
+      } else if (Array.isArray(parsed?.data)) {
+        rawList = parsed.data;
+      } else if (Array.isArray(parsed?.subtitles)) {
+        rawList = parsed.subtitles;
+      } else if (Array.isArray(parsed?.lines)) {
+        rawList = parsed.lines;
+      } else if (parsed && typeof parsed === "object") {
+        const candidate = Object.values(parsed).find(Array.isArray);
+        if (candidate) rawList = candidate;
+      }
+      if (rawList.length === 0) {
+        throw new Error("\u0622\u0631\u0627\u06CC\u0647 \u062A\u0631\u062C\u0645\u0647\u200C\u0647\u0627 \u062F\u0631 \u062E\u0631\u0648\u062C\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0647\u0631\u0645\u0632 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+      }
+      return rawList;
+    } catch (err) {
+      lastErr = err;
+      const isFatal = err?.message?.includes("\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u0647\u0631\u0645\u0632 (40") || err?.message?.includes("\u0641\u06CC\u0644\u062A\u0631 \u0645\u062D\u062A\u0648\u0627");
+      if (isFatal) {
+        throw err;
+      }
+      console.warn(`[Hormouz Translate Attempt ${attempt + 1}] error:`, err?.message);
+      if (attempt < 2) {
+        await new Promise((r2) => setTimeout(r2, (attempt + 1) * 1500));
+      }
+    }
+  }
+  throw lastErr || new Error("\u067E\u0627\u0633\u062E\u06CC \u0627\u0632 \u0645\u062F\u0644 \u062A\u0631\u062C\u0645\u0647 \u0647\u0631\u0645\u0632 \u062F\u0631\u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+}
 async function translateWithHormouz(lines, style, config, customPrompt) {
-  const CHUNK_SIZE = 15;
+  const CHUNK_SIZE = 12;
   const allTranslations = [];
   for (let i2 = 0; i2 < lines.length; i2 += CHUNK_SIZE) {
     const chunk = lines.slice(i2, i2 + CHUNK_SIZE);
-    const promptText = buildPromptForLines(chunk, style, customPrompt);
-    console.log(`[Hormouz Translate] Requesting model "${config.translationModel}" at ${config.baseUrl} for lines ${chunk[0].id}..${chunk[chunk.length - 1].id}...`);
-    let responseData = null;
-    let lastErr = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await fetch(`${config.baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${config.apiKey}`
-          },
-          body: JSON.stringify({
-            model: config.translationModel,
-            messages: [
-              {
-                role: "system",
-                content: 'You are an expert English-to-Persian translator for video dubbing. You MUST reply with valid JSON only adhering strictly to: {"translations": [{"id": 1, "farsiText": "...", "characterEmotion": "\u0637\u0628\u06CC\u0639\u06CC \u0648 \u0631\u0633\u0627", "suggestedGender": "male"}]}. Never output conversational chatter, markdown text, or explanations outside the JSON.'
-              },
-              {
-                role: "user",
-                content: promptText
-              }
-            ],
-            temperature: 0.3,
-            max_tokens: 4096
-          }),
-          signal: AbortSignal.timeout(6e4)
-        });
-        if (!res.ok) {
-          const errText = await res.text();
-          let parsedErr;
-          try {
-            parsedErr = JSON.parse(errText);
-          } catch {
-          }
-          const msg = parsedErr?.error?.message || parsedErr?.message || errText;
-          const status = res.status;
-          const fatalError = new Error(`\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u0647\u0631\u0645\u0632 (${status}): ${msg}`);
-          if (status === 400 || status === 401 || status === 402 || status === 403 || status === 404) {
-            lastErr = fatalError;
-            break;
-          }
-          throw fatalError;
-        }
-        responseData = await res.json();
-        break;
-      } catch (err) {
-        lastErr = err;
-        console.warn(`[Hormouz Translate Attempt ${attempt + 1}] error:`, err?.message);
-        if (attempt < 2) await new Promise((r2) => setTimeout(r2, 2e3));
-      }
-    }
-    if (!responseData) {
-      throw lastErr || new Error("\u067E\u0627\u0633\u062E\u06CC \u0627\u0632 \u0645\u062F\u0644 \u062A\u0631\u062C\u0645\u0647 \u0647\u0631\u0645\u0632 \u062F\u0631\u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
-    }
-    if (responseData?.error) {
-      const errMsg = responseData.error.message || JSON.stringify(responseData.error);
-      throw new Error(`\u062E\u0637\u0627\u06CC \u0627\u0631\u0627\u0626\u0647\u200C\u062F\u0647\u0646\u062F\u0647 \u0647\u0631\u0645\u0632: ${errMsg}`);
-    }
-    const choice = responseData?.choices?.[0];
-    const rawContent = (choice?.message?.content || choice?.text || (choice?.message?.reasoning_content && !choice?.message?.content ? choice?.message?.reasoning_content : "") || "").trim();
-    if (!rawContent) {
-      console.error("[Hormouz Translate] Response choices content was empty:", JSON.stringify(responseData));
-      throw new Error("\u067E\u0627\u0633\u062E \u062F\u0631\u06CC\u0627\u0641\u062A\u06CC \u0627\u0632 \u0645\u062F\u0644 \u0647\u0631\u0645\u0632 \u062E\u0627\u0644\u06CC \u0628\u0648\u062F \u06CC\u0627 \u0633\u0627\u062E\u062A\u0627\u0631 \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u062F\u0627\u0634\u062A.");
-    }
-    const parsed = extractJsonFromLlmResponse(rawContent);
     let rawList = [];
-    if (Array.isArray(parsed?.translations)) {
-      rawList = parsed.translations;
-    } else if (Array.isArray(parsed)) {
-      rawList = parsed;
-    } else if (Array.isArray(parsed?.result)) {
-      rawList = parsed.result;
-    } else if (Array.isArray(parsed?.data)) {
-      rawList = parsed.data;
-    } else if (Array.isArray(parsed?.subtitles)) {
-      rawList = parsed.subtitles;
-    } else if (Array.isArray(parsed?.lines)) {
-      rawList = parsed.lines;
-    } else if (parsed && typeof parsed === "object") {
-      const candidate = Object.values(parsed).find(Array.isArray);
-      if (candidate) rawList = candidate;
-    }
-    if (rawList.length === 0) {
-      throw new Error("\u0622\u0631\u0627\u06CC\u0647 \u062A\u0631\u062C\u0645\u0647\u200C\u0647\u0627 \u062F\u0631 \u062E\u0631\u0648\u062C\u06CC \u0647\u0648\u0634 \u0645\u0635\u0646\u0648\u0639\u06CC \u0647\u0631\u0645\u0632 \u06CC\u0627\u0641\u062A \u0646\u0634\u062F.");
+    try {
+      rawList = await translateHormouzChunk(chunk, style, config, customPrompt);
+    } catch (chunkErr) {
+      if (chunkErr?.message?.includes("\u062E\u0637\u0627\u06CC \u0633\u0631\u0648\u0631 \u0647\u0631\u0645\u0632 (40") || chunkErr?.message?.includes("\u0641\u06CC\u0644\u062A\u0631 \u0645\u062D\u062A\u0648\u0627")) {
+        throw chunkErr;
+      }
+      console.warn(`[Hormouz Translate] Chunk ${chunk[0].id}..${chunk[chunk.length - 1].id} failed (${chunkErr.message}). Attempting adaptive sub-chunking in batches of 4...`);
+      const SUB_CHUNK_SIZE = 4;
+      let subSuccess = true;
+      const collectedSubList = [];
+      for (let s2 = 0; s2 < chunk.length; s2 += SUB_CHUNK_SIZE) {
+        const subChunk = chunk.slice(s2, s2 + SUB_CHUNK_SIZE);
+        try {
+          const subResult = await translateHormouzChunk(subChunk, style, config, customPrompt);
+          collectedSubList.push(...subResult);
+        } catch (subErr) {
+          console.warn(`[Hormouz Translate] Sub-chunk ${subChunk[0].id} failed:`, subErr?.message);
+          subSuccess = false;
+          break;
+        }
+      }
+      if (subSuccess && collectedSubList.length > 0) {
+        rawList = collectedSubList;
+      } else {
+        console.warn(`[Hormouz Translate] Using safe fallback translation for lines ${chunk[0].id}..${chunk[chunk.length - 1].id} to avoid losing workflow progress.`);
+        const fallbackResults = await translateWithFallbackEngine(chunk, style);
+        for (const fb of fallbackResults) {
+          allTranslations.push(fb);
+        }
+        continue;
+      }
     }
     for (const item of rawList) {
       const id = Number(item.id || item.segmentId || item.lineId);
@@ -72044,7 +72143,7 @@ app.post("/api/time-stretch-audio", async (req, res) => {
     const rawBase64 = audioBase64.replace(/^data:audio\/\w+;base64,/, "").trim();
     const audioBuf = Buffer.from(rawBase64, "base64");
     await import_fs4.default.promises.writeFile(tempInPath, audioBuf);
-    let ffmpegBin = import_fs4.default.existsSync("/usr/bin/ffmpeg") ? "/usr/bin/ffmpeg" : "ffmpeg";
+    let ffmpegBin = getFfmpegBin();
     let stretchSuccess = false;
     try {
       await new Promise((resolve, reject) => {
@@ -72235,7 +72334,7 @@ app.post(
       console.log(`[Video Rendering] Starting dubbed video render: includeIntro=${includeIntro}, includeLogo=${includeLogo}, preset=${preset}`);
       let muxSuccess = false;
       if (!includeIntro && !includeLogo) {
-        const ffmpegBin = import_fs4.default.existsSync("/usr/bin/ffmpeg") ? "/usr/bin/ffmpeg" : "ffmpeg";
+        const ffmpegBin = getFfmpegBin();
         try {
           await new Promise((resolve, reject) => {
             const proc = (0, import_child_process2.spawn)(ffmpegBin, [
@@ -72294,7 +72393,7 @@ app.post(
         if (!includeIntro) pyArgs.push("--no-intro");
         if (!includeLogo) pyArgs.push("--no-logo");
         await new Promise((resolve, reject) => {
-          const pyProc = (0, import_child_process2.spawn)("python", pyArgs, { cwd: appDir });
+          const pyProc = (0, import_child_process2.spawn)(getPythonBin(), pyArgs, { cwd: appDir });
           let stdout = "";
           let stderr = "";
           pyProc.stdout.on("data", (d) => {
@@ -72582,6 +72681,528 @@ STRICT CONSTRAINTS & RULES:
     return res.status(500).json({ success: false, error: err.message || "\u062E\u0637\u0627 \u062F\u0631 \u0627\u062C\u0631\u0627\u06CC \u0633\u06CC\u0646\u06A9 \u0647\u0648\u0634\u0645\u0646\u062F \u062E\u0637 \u0632\u0645\u0627\u0646" });
   }
 });
+var CURRENT_APP_VERSION = "1.0.1";
+var UPDATE_SERVER_URL = process.env.UPDATE_SERVER_URL || "http://localhost:4000";
+function classifyUpdateError(err, endpointUrl) {
+  const causeCode = err?.cause?.code || err?.code || "";
+  const rawMsg = err?.message || String(err);
+  let endpointHost = endpointUrl;
+  try {
+    endpointHost = new URL(endpointUrl).host;
+  } catch {
+  }
+  if (causeCode === "ECONNREFUSED" || rawMsg.includes("ECONNREFUSED")) {
+    return {
+      status: "unreachable",
+      messageFa: `\u0633\u0631\u0648\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC (${endpointHost}) \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u0633\u0631\u0648\u06CC\u0633 \u0622\u0646 \u063A\u06CC\u0631\u0641\u0639\u0627\u0644 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0627\u062A\u0635\u0627\u0644 \u0627\u06CC\u0646\u062A\u0631\u0646\u062A \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u0646\u0645\u0648\u062F\u0647 \u06CC\u0627 \u0628\u0639\u062F\u0627\u064B \u0645\u062C\u062F\u062F\u0627\u064B \u062A\u0644\u0627\u0634 \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.`,
+      technicalDetails: `TCP Connection Refused (ECONNREFUSED) to ${endpointUrl}`,
+      endpoint: endpointUrl,
+      isRetryable: true
+    };
+  }
+  if (causeCode === "ENOTFOUND" || rawMsg.includes("ENOTFOUND") || rawMsg.includes("getaddrinfo")) {
+    return {
+      status: "unreachable",
+      messageFa: `\u062F\u0627\u0645\u0646\u0647 \u0633\u0631\u0648\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC (${endpointHost}) \u0634\u0646\u0627\u0633\u0627\u06CC\u06CC \u0646\u0634\u062F (\u062E\u0637\u0627\u06CC DNS). \u0644\u0637\u0641\u0627\u064B \u0627\u062A\u0635\u0627\u0644 \u0627\u06CC\u0646\u062A\u0631\u0646\u062A \u06CC\u0627 \u062A\u0646\u0638\u06CC\u0645\u0627\u062A \u0634\u0628\u06A9\u0647 \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.`,
+      technicalDetails: `DNS Resolution Error (ENOTFOUND) for ${endpointUrl}`,
+      endpoint: endpointUrl,
+      isRetryable: true
+    };
+  }
+  if (causeCode === "ETIMEDOUT" || err?.name === "TimeoutError" || err?.name === "AbortError" || rawMsg.includes("timeout")) {
+    return {
+      status: "timeout",
+      messageFa: "\u0645\u0647\u0644\u062A \u0632\u0645\u0627\u0646 \u0627\u062A\u0635\u0627\u0644 \u0628\u0647 \u0633\u0631\u0648\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0628\u0647 \u067E\u0627\u06CC\u0627\u0646 \u0631\u0633\u06CC\u062F (Timeout). \u0644\u0637\u0641\u0627\u064B \u0633\u0631\u0639\u062A \u0627\u06CC\u0646\u062A\u0631\u0646\u062A \u0631\u0627 \u0628\u0631\u0631\u0633\u06CC \u0648 \u0645\u062C\u062F\u062F\u0627\u064B \u062A\u0644\u0627\u0634 \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.",
+      technicalDetails: `Request timeout (15000ms exceeded) to ${endpointUrl}`,
+      endpoint: endpointUrl,
+      isRetryable: true
+    };
+  }
+  if (causeCode.includes("CERT_") || rawMsg.includes("certificate") || rawMsg.includes("SSL") || rawMsg.includes("TLS")) {
+    return {
+      status: "error",
+      messageFa: "\u062E\u0637\u0627\u06CC \u0627\u0639\u062A\u0628\u0627\u0631\u0633\u0646\u062C\u06CC \u0627\u0645\u0646\u06CC\u062A\u06CC SSL/TLS \u062F\u0631 \u0628\u0631\u0642\u0631\u0627\u0631\u06CC \u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u0633\u0631\u0648\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC.",
+      technicalDetails: `TLS Handshake Error: ${rawMsg}`,
+      endpoint: endpointUrl,
+      isRetryable: false
+    };
+  }
+  if (rawMsg.includes("fetch failed") || causeCode === "ECONNRESET" || causeCode === "EHOSTUNREACH") {
+    return {
+      status: "offline",
+      messageFa: "\u0627\u0631\u062A\u0628\u0627\u0637 \u0628\u0627 \u0633\u0631\u0648\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0628\u0631\u0642\u0631\u0627\u0631 \u0646\u0634\u062F. \u0633\u0631\u0648\u0631 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u062F\u0631 \u062F\u0633\u062A\u0631\u0633 \u0646\u06CC\u0633\u062A \u06CC\u0627 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u0634\u0628\u06A9\u0647 \u0645\u0633\u062F\u0648\u062F \u0645\u06CC\u200C\u0628\u0627\u0634\u062F.",
+      technicalDetails: `Fetch Failed (${causeCode || "Network Error"}): ${rawMsg}`,
+      endpoint: endpointUrl,
+      isRetryable: true
+    };
+  }
+  return {
+    status: "error",
+    messageFa: `\u062E\u0637\u0627 \u062F\u0631 \u0641\u0631\u0622\u06CC\u0646\u062F \u0628\u0631\u0631\u0633\u06CC \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC: ${rawMsg}`,
+    technicalDetails: rawMsg,
+    endpoint: endpointUrl,
+    isRetryable: true
+  };
+}
+function getUpdateAuthorityPublicKeyPem() {
+  const localPaths = [
+    import_path3.default.join(appDir, "tools", "update-signer", "keys", "update_signer_public_key.pem"),
+    import_path3.default.join(process.cwd(), "tools", "update-signer", "keys", "update_signer_public_key.pem"),
+    import_path3.default.join(appDir, "keys", "update_signer_public_key.pem")
+  ];
+  for (const p of localPaths) {
+    if (import_fs4.default.existsSync(p)) {
+      return import_fs4.default.readFileSync(p, "utf8");
+    }
+  }
+  return UPDATE_AUTHORITY_PUBLIC_KEY_PEM;
+}
+var appUpdateState = {
+  currentVersion: CURRENT_APP_VERSION,
+  channel: "stable",
+  autoUpdateEnabled: true,
+  updateInfo: null,
+  progress: {
+    status: "idle",
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: 0
+  },
+  downloadedFilePath: null
+};
+function verifyUpdateManifestSignature(manifest) {
+  if (!manifest || !manifest.signature) return false;
+  try {
+    const pubKeyPem = getUpdateAuthorityPublicKeyPem();
+    const canonical = manifest.canonicalString || buildCanonicalManifestString(
+      manifest.appName || UPDATE_APP_NAME,
+      manifest.version,
+      manifest.channel || "stable",
+      manifest.os || "windows",
+      manifest.arch || "x64",
+      manifest.sha256,
+      manifest.fileSizeBytes || manifest.size || 0,
+      manifest.minSupportedVersion || "1.0.0"
+    );
+    const sigBuf = Buffer.from(manifest.signature, "base64");
+    return import_crypto3.default.verify(null, Buffer.from(canonical, "utf8"), pubKeyPem, sigBuf);
+  } catch (err) {
+    console.error("[Update Verify Error]:", err);
+    return false;
+  }
+}
+app.get("/api/app-update/status", (_req, res) => {
+  return res.json({
+    currentVersion: appUpdateState.currentVersion,
+    channel: appUpdateState.channel,
+    autoUpdateEnabled: appUpdateState.autoUpdateEnabled,
+    updateInfo: appUpdateState.updateInfo,
+    progress: appUpdateState.progress
+  });
+});
+app.post("/api/app-update/preferences", (req, res) => {
+  const { autoUpdateEnabled, channel } = req.body;
+  if (typeof autoUpdateEnabled === "boolean") {
+    appUpdateState.autoUpdateEnabled = autoUpdateEnabled;
+  }
+  if (channel === "stable" || channel === "beta") {
+    appUpdateState.channel = channel;
+  }
+  return res.json({ success: true, state: appUpdateState });
+});
+function compareSemver(v1, v2) {
+  const clean1 = (v1 || "").replace(/^v/, "").trim();
+  const clean2 = (v2 || "").replace(/^v/, "").trim();
+  const [main1, pre1] = clean1.split("-");
+  const [main2, pre2] = clean2.split("-");
+  const parts1 = main1.split(".").map((p) => parseInt(p, 10) || 0);
+  const parts2 = main2.split(".").map((p) => parseInt(p, 10) || 0);
+  for (let i2 = 0; i2 < Math.max(parts1.length, parts2.length); i2++) {
+    const num1 = parts1[i2] || 0;
+    const num2 = parts2[i2] || 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+  if (pre1 && !pre2) return -1;
+  if (!pre1 && pre2) return 1;
+  if (pre1 && pre2) {
+    return pre1.localeCompare(pre2);
+  }
+  return 0;
+}
+app.post("/api/app-update/check", async (req, res) => {
+  const reqChannel = req.body?.channel || appUpdateState.channel;
+  appUpdateState.channel = reqChannel;
+  appUpdateState.progress = {
+    status: "checking",
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: 0
+  };
+  let hwFingerprint = "";
+  try {
+    const hw = await getHardwareInfo();
+    hwFingerprint = hw.hardwareFingerprint;
+  } catch {
+  }
+  const checkUrl = `${UPDATE_SERVER_URL}/api/updates/check?version=${appUpdateState.currentVersion}&channel=${reqChannel}&os=win&arch=x64`;
+  console.log(`[App Update] Querying update server at: ${checkUrl}`);
+  let serverRes = null;
+  let serverFetchErr = null;
+  try {
+    serverRes = await fetch(checkUrl, {
+      headers: {
+        "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`,
+        "X-Hardware-Fingerprint": hwFingerprint
+      },
+      signal: AbortSignal.timeout(15e3)
+    });
+  } catch (fErr) {
+    serverFetchErr = fErr;
+  }
+  if (serverRes && serverRes.ok) {
+    try {
+      const data = await serverRes.json();
+      if (data.updateAvailable) {
+        if (data.signature) {
+          const isSigValid = verifyUpdateManifestSignature({
+            appName: "Dubbing Vidans",
+            version: data.latestVersion,
+            channel: reqChannel,
+            os: "windows",
+            arch: "x64",
+            sha256: data.sha256,
+            fileSizeBytes: data.sizeBytes,
+            minSupportedVersion: data.minSupportedVersion || "1.0.0",
+            signature: data.signature
+          });
+          if (!isSigValid) {
+            console.warn("[App Update] Manifest signature verification failed! Update rejected.");
+            appUpdateState.progress = {
+              status: "error",
+              progressPercent: 0,
+              downloadedBytes: 0,
+              totalBytes: 0,
+              errorMessage: "\u0627\u0645\u0636\u0627\u06CC \u062F\u06CC\u062C\u06CC\u062A\u0627\u0644 \u0628\u0633\u062A\u0647 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A. \u062C\u0647\u062A \u062D\u0641\u0638 \u0627\u0645\u0646\u06CC\u062A \u0627\u0632 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0646 \u062E\u0648\u062F\u062F\u0627\u0631\u06CC \u0634\u062F."
+            };
+            return res.status(400).json({ error: "Update rejected: Invalid cryptographic signature." });
+          }
+        }
+        appUpdateState.updateInfo = data;
+        appUpdateState.progress = {
+          status: "available",
+          progressPercent: 0,
+          downloadedBytes: 0,
+          totalBytes: data.sizeBytes || 0
+        };
+      } else {
+        appUpdateState.updateInfo = data;
+        appUpdateState.progress = {
+          status: "up_to_date",
+          progressPercent: 0,
+          downloadedBytes: 0,
+          totalBytes: 0
+        };
+      }
+      return res.json(data);
+    } catch (parseErr) {
+      serverFetchErr = parseErr;
+    }
+  }
+  if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
+    try {
+      console.log("[App Update] Attempting direct fallback query to GitHub Releases via GITHUB_TOKEN...");
+      const ghRes = await fetch("https://api.github.com/repos/azizifarshad/Dubbing/releases?per_page=10", {
+        headers: {
+          Authorization: `token ${process.env.GITHUB_TOKEN.trim()}`,
+          Accept: "application/vnd.github.v3+json",
+          "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
+        },
+        signal: AbortSignal.timeout(15e3)
+      });
+      if (ghRes.ok) {
+        const releases = await ghRes.json();
+        if (Array.isArray(releases) && releases.length > 0) {
+          let candidate = releases.find((r2) => {
+            if (reqChannel === "beta") return true;
+            return !r2.prerelease && !r2.draft;
+          });
+          if (!candidate && releases.length > 0) candidate = releases[0];
+          const rawTag = candidate.tag_name || candidate.name || "0.0.0";
+          const latestVersion = rawTag.replace(/^v/, "");
+          const hasNewer = compareSemver(latestVersion, appUpdateState.currentVersion) > 0;
+          let manifestData = null;
+          const manifestAsset = candidate.assets?.find((a) => a.name === "update-manifest.json");
+          const installerAsset = candidate.assets?.find(
+            (a) => a.name.endsWith(".exe") && !a.name.includes("Generator")
+          ) || candidate.assets?.[0];
+          if (manifestAsset) {
+            try {
+              const mfRes = await fetch(manifestAsset.url, {
+                headers: {
+                  Authorization: `token ${process.env.GITHUB_TOKEN.trim()}`,
+                  Accept: "application/octet-stream",
+                  "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
+                },
+                signal: AbortSignal.timeout(1e4)
+              });
+              if (mfRes.ok) {
+                manifestData = await mfRes.json();
+              }
+            } catch (mfErr) {
+              console.warn("[App Update] Could not parse manifest asset from GitHub:", mfErr.message);
+            }
+          }
+          const hostPort = process.env.PORT || "3000";
+          const downloadUrl = installerAsset ? `http://127.0.0.1:${hostPort}/api/app-update/download-asset/${installerAsset.id}?name=${encodeURIComponent(installerAsset.name)}` : "";
+          const directData = {
+            updateAvailable: hasNewer,
+            currentVersion: appUpdateState.currentVersion,
+            latestVersion,
+            channel: reqChannel,
+            releaseName: candidate.name || `Dubbing Vidans v${latestVersion}`,
+            releaseNotes: manifestData?.releaseNotes || candidate.body || "\u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC\u200C\u0647\u0627\u06CC \u0639\u0645\u0644\u06A9\u0631\u062F\u06CC \u0648 \u0627\u0645\u0646\u06CC\u062A\u06CC.",
+            releaseNotesFa: manifestData?.releaseNotesFa || "\u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC\u200C\u0647\u0627\u06CC \u0633\u0631\u0639\u062A\u060C \u067E\u0627\u06CC\u062F\u0627\u0631\u06CC \u0648 \u0628\u0647\u0628\u0648\u062F \u0627\u0644\u06AF\u0648\u0631\u06CC\u062A\u0645\u200C\u0647\u0627\u06CC \u0633\u06CC\u0646\u06A9 \u0635\u0648\u062A\u06CC.",
+            downloadUrl,
+            sizeBytes: installerAsset?.size || manifestData?.fileSizeBytes || 0,
+            sha256: manifestData?.sha256 || "",
+            signature: manifestData?.signature || "",
+            minSupportedVersion: manifestData?.minSupportedVersion || "1.0.0",
+            status: hasNewer ? "available" : "up_to_date"
+          };
+          if (hasNewer && directData.signature) {
+            const isSigValid = verifyUpdateManifestSignature({
+              appName: "Dubbing Vidans",
+              version: latestVersion,
+              channel: reqChannel,
+              os: "windows",
+              arch: "x64",
+              sha256: directData.sha256,
+              fileSizeBytes: directData.sizeBytes,
+              minSupportedVersion: directData.minSupportedVersion,
+              signature: directData.signature
+            });
+            if (!isSigValid) {
+              console.warn("[App Update Direct GitHub] Signature verification failed! Rejecting update.");
+              return res.status(400).json({ error: "Update rejected: Invalid cryptographic signature." });
+            }
+          }
+          appUpdateState.updateInfo = directData;
+          appUpdateState.progress = {
+            status: hasNewer ? "available" : "up_to_date",
+            progressPercent: 0,
+            downloadedBytes: 0,
+            totalBytes: directData.sizeBytes || 0
+          };
+          return res.json(directData);
+        } else {
+          const noReleaseData = {
+            updateAvailable: false,
+            currentVersion: appUpdateState.currentVersion,
+            latestVersion: appUpdateState.currentVersion,
+            channel: reqChannel,
+            status: "up_to_date",
+            messageFa: "\u0634\u0645\u0627 \u062F\u0631 \u062D\u0627\u0644 \u062D\u0627\u0636\u0631 \u0627\u0632 \u0622\u062E\u0631\u06CC\u0646 \u0646\u0633\u062E\u0647 \u067E\u0627\u06CC\u062F\u0627\u0631 \u0646\u0631\u0645\u200C\u0627\u0641\u0632\u0627\u0631 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0645\u06CC\u200C\u06A9\u0646\u06CC\u062F."
+          };
+          appUpdateState.updateInfo = noReleaseData;
+          appUpdateState.progress = {
+            status: "up_to_date",
+            progressPercent: 0,
+            downloadedBytes: 0,
+            totalBytes: 0
+          };
+          return res.json(noReleaseData);
+        }
+      }
+    } catch (ghErr) {
+      console.warn("[App Update] Direct GitHub fallback failed:", ghErr.message);
+    }
+  }
+  const finalError = serverFetchErr || new Error(`Server returned HTTP ${serverRes?.status || "UNKNOWN"}`);
+  const classified = classifyUpdateError(finalError, checkUrl);
+  console.warn(`[App Update Check]: ${classified.technicalDetails}`);
+  appUpdateState.progress = {
+    status: "error",
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: 0,
+    errorMessage: classified.messageFa,
+    technicalDetails: classified.technicalDetails
+  };
+  return res.json({
+    updateAvailable: false,
+    currentVersion: appUpdateState.currentVersion,
+    status: classified.status,
+    errorMessageFa: classified.messageFa,
+    technicalDetails: classified.technicalDetails,
+    endpoint: classified.endpoint,
+    isRetryable: classified.isRetryable
+  });
+});
+app.get("/api/app-update/download-asset/:assetId", async (req, res) => {
+  const assetId = req.params.assetId;
+  const fileName = req.query.name || "Dubbing-Vidans-Setup.exe";
+  const token = process.env.GITHUB_TOKEN?.trim();
+  if (!token) {
+    return res.status(401).json({ error: "GitHub token required to download asset from private repository." });
+  }
+  try {
+    const assetUrl = `https://api.github.com/repos/azizifarshad/Dubbing/releases/assets/${assetId}`;
+    const assetRes = await fetch(assetUrl, {
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: "application/octet-stream",
+        "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
+      }
+    });
+    if (!assetRes.ok) {
+      return res.status(assetRes.status).send(`Failed to stream asset (${assetRes.status})`);
+    }
+    const contentLength = assetRes.headers.get("content-length");
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    if (contentLength) res.setHeader("Content-Length", contentLength);
+    if (assetRes.body) {
+      const reader = assetRes.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          res.end();
+          break;
+        }
+        if (value) {
+          res.write(Buffer.from(value));
+        }
+      }
+    } else {
+      res.end();
+    }
+  } catch (err) {
+    console.error("[Download Asset Error]:", err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+app.post("/api/app-update/download", async (_req, res) => {
+  const updateInfo = appUpdateState.updateInfo;
+  if (!updateInfo || !updateInfo.downloadUrl) {
+    return res.status(400).json({ error: "No update available to download." });
+  }
+  const updatesDir = import_path3.default.join(appDir, "updates");
+  if (!import_fs4.default.existsSync(updatesDir)) {
+    import_fs4.default.mkdirSync(updatesDir, { recursive: true });
+  }
+  const targetFileName = "Dubbing-Vidans-Setup.exe";
+  const targetPath = import_path3.default.join(updatesDir, targetFileName);
+  appUpdateState.progress = {
+    status: "downloading",
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: updateInfo.sizeBytes || 0
+  };
+  (async () => {
+    try {
+      let effectiveDownloadUrl = updateInfo.downloadUrl;
+      if (effectiveDownloadUrl.startsWith("/")) {
+        effectiveDownloadUrl = `http://127.0.0.1:${PORT}${effectiveDownloadUrl}`;
+      }
+      console.log(`[App Update Download] Fetching installer from: ${effectiveDownloadUrl}`);
+      const downloadRes = await fetch(effectiveDownloadUrl);
+      if (!downloadRes.ok) {
+        throw new Error(`Download failed with status ${downloadRes.status}`);
+      }
+      const totalLen = parseInt(downloadRes.headers.get("content-length") || `${updateInfo.sizeBytes || 0}`, 10);
+      appUpdateState.progress.totalBytes = totalLen;
+      const fileStream = import_fs4.default.createWriteStream(targetPath);
+      const sha256Hasher = import_crypto3.default.createHash("sha256");
+      let receivedBytes = 0;
+      if (!downloadRes.body) {
+        throw new Error("Response body stream is empty");
+      }
+      const reader = downloadRes.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          const buf = Buffer.from(value);
+          fileStream.write(buf);
+          sha256Hasher.update(buf);
+          receivedBytes += buf.length;
+          appUpdateState.progress.downloadedBytes = receivedBytes;
+          if (totalLen > 0) {
+            appUpdateState.progress.progressPercent = Math.min(100, Math.round(receivedBytes / totalLen * 100));
+          }
+        }
+      }
+      fileStream.end();
+      await new Promise((resolve, reject) => {
+        fileStream.on("finish", () => resolve());
+        fileStream.on("error", reject);
+      });
+      appUpdateState.progress.status = "verifying";
+      const downloadedSha256 = sha256Hasher.digest("hex");
+      console.log(`[App Update Download] Completed. Computed SHA-256: ${downloadedSha256}`);
+      if (updateInfo.sha256 && updateInfo.sha256.toLowerCase() !== downloadedSha256.toLowerCase()) {
+        try {
+          import_fs4.default.unlinkSync(targetPath);
+        } catch {
+        }
+        throw new Error(`Checksum mismatch! Expected: ${updateInfo.sha256}, Got: ${downloadedSha256}`);
+      }
+      appUpdateState.downloadedFilePath = targetPath;
+      appUpdateState.progress = {
+        status: "ready_to_install",
+        progressPercent: 100,
+        downloadedBytes: receivedBytes,
+        totalBytes: receivedBytes
+      };
+      console.log("[App Update] Ready to install update.");
+    } catch (dlErr) {
+      console.error("[App Update Download Error]:", dlErr.message);
+      const classified = classifyUpdateError(dlErr, updateInfo.downloadUrl);
+      appUpdateState.progress = {
+        status: "error",
+        progressPercent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0,
+        errorMessage: classified.messageFa,
+        errorMessageFa: classified.messageFa,
+        technicalDetails: classified.technicalDetails
+      };
+    }
+  })();
+  return res.json({ success: true, message: "Download initiated." });
+});
+app.post("/api/app-update/install", async (_req, res) => {
+  const filePath = appUpdateState.downloadedFilePath;
+  if (!filePath || !import_fs4.default.existsSync(filePath)) {
+    return res.status(400).json({ error: "Downloaded installer file not found. Please download again." });
+  }
+  console.log(`[App Update Install] Launching installer: ${filePath}`);
+  appUpdateState.progress.status = "installing";
+  try {
+    const child = (0, import_child_process2.spawn)(filePath, ["/SILENT"], {
+      detached: true,
+      stdio: "ignore"
+    });
+    child.unref();
+    res.json({
+      success: true,
+      message: "Installer launched. Application will now restart to apply updates.",
+      messageFa: "\u0641\u0631\u0622\u06CC\u0646\u062F \u0646\u0635\u0628 \u0622\u063A\u0627\u0632 \u0634\u062F. \u0628\u0631\u0646\u0627\u0645\u0647 \u062F\u0631 \u062D\u0627\u0644 \u0631\u0627\u0647\u200C\u0627\u0646\u062F\u0627\u0632\u06CC \u0645\u062C\u062F\u062F \u0627\u0633\u062A."
+    });
+    setTimeout(() => {
+      console.log("[App Update Install] Gracefully terminating server for upgrade.");
+      process.exit(0);
+    }, 1500);
+  } catch (err) {
+    console.error("[App Update Launch Error]:", err.message);
+    appUpdateState.progress.status = "error";
+    appUpdateState.progress.errorMessage = err.message;
+    return res.status(500).json({ error: err.message });
+  }
+});
 async function startServer() {
   const distPath = import_path3.default.resolve(appDir, "dist");
   const hasDist = import_fs4.default.existsSync(import_path3.default.resolve(distPath, "index.html"));
@@ -72608,8 +73229,34 @@ async function startServer() {
       }
     }
   }
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Vidans: http://localhost:${PORT}`);
+  const host = process.env.HOST || "127.0.0.1";
+  app.listen(PORT, host, () => {
+    console.log(`Vidans: http://${host}:${PORT}`);
+    setTimeout(async () => {
+      if (appUpdateState.autoUpdateEnabled) {
+        try {
+          console.log("[Auto-Update Background] Checking for available updates on startup...");
+          await fetch(`http://127.0.0.1:${PORT}/api/app-update/check`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ channel: appUpdateState.channel })
+          });
+        } catch {
+        }
+      }
+    }, 5e3);
+    setInterval(async () => {
+      if (appUpdateState.autoUpdateEnabled) {
+        try {
+          await fetch(`http://127.0.0.1:${PORT}/api/app-update/check`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ channel: appUpdateState.channel })
+          });
+        } catch {
+        }
+      }
+    }, 4 * 60 * 60 * 1e3);
   });
 }
 if (!process.argv.some((arg) => arg.includes(".test."))) {

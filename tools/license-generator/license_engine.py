@@ -1,4 +1,5 @@
-﻿import os
+import os
+import sys
 import json
 import uuid
 import base64
@@ -15,8 +16,24 @@ VALID_PRODUCT_NAMES = [
 LICENSE_SCHEMA_VERSION = 1
 
 def get_keys_dir():
+    # 1. If running as compiled exe, check beside executable first
+    if getattr(sys, 'frozen', False):
+        exe_dir = os.path.dirname(sys.executable)
+        keys_dir = os.path.join(exe_dir, "keys")
+        if os.path.exists(os.path.join(keys_dir, "owner_private_key.pem")):
+            return keys_dir
+
+    # 2. Check relative to current script / _MEIPASS
     current_dir = os.path.dirname(os.path.abspath(__file__))
     keys_dir = os.path.join(current_dir, "keys")
+    if os.path.exists(os.path.join(keys_dir, "owner_private_key.pem")):
+        return keys_dir
+
+    # 3. Check current working directory
+    cwd_keys = os.path.join(os.getcwd(), "keys")
+    if os.path.exists(os.path.join(cwd_keys, "owner_private_key.pem")):
+        return cwd_keys
+
     os.makedirs(keys_dir, exist_ok=True)
     return keys_dir
 

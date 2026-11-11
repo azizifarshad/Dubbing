@@ -1,7 +1,7 @@
 ; Inno Setup Script: Dubbing Vidans
 
 #define MyAppName "Dubbing Vidans"
-#define MyAppVersion "2.0.0"
+#define MyAppVersion "1.0.1"
 #define MyAppPublisher "Vidans Studio"
 #define MyAppExeName "DubbingVidans.exe"
 #define MyAppURL "https://github.com/azizifarshad/Dubbing"
@@ -59,10 +59,10 @@ Source: "..\assets\*"; DestDir: "{app}\assets"; Flags: ignoreversion recursesubd
 Source: "..\public\*"; DestDir: "{app}\public"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; Offline Whisper model
-Source: "..\models\*"; DestDir: "{app}\models"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\models\*"; DestDir: "{app}\models"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; Runtimes
-Source: "..\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\runtime\*"; DestDir: "{app}\runtime"; Flags: ignoreversion recursesubdirs createallsubdirs skipifsourcedoesntexist
 
 ; Backend and scripts
 Source: "..\server.cjs"; DestDir: "{app}"; Flags: ignoreversion

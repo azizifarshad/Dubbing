@@ -82,7 +82,8 @@ export function generateActivationRequest(): ActivationRequest {
 
 // Verify license signature and match against local hardware
 export function verifyLicense(
-  licenseData: SignedLicenseFile
+  licenseData: SignedLicenseFile,
+  customAuthorityPublicKeyPem?: string
 ): LicenseValidationResult {
   try {
     if (!licenseData || !licenseData.payload || !licenseData.authoritySignature) {
@@ -111,7 +112,7 @@ export function verifyLicense(
 
     // Check authority signature
     const canonicalStr = buildCanonicalLicenseString(payload);
-    const authorityPubKey = crypto.createPublicKey(MASTER_AUTHORITY_PUBLIC_KEY_PEM);
+    const authorityPubKey = crypto.createPublicKey(customAuthorityPublicKeyPem || MASTER_AUTHORITY_PUBLIC_KEY_PEM);
     const signatureBuf = Buffer.from(licenseData.authoritySignature, 'base64');
 
     const isSignatureValid = crypto.verify(
@@ -180,7 +181,7 @@ export function verifyLicense(
 }
 
 // Check installed license in ProgramData
-export function checkCurrentLicense(): LicenseValidationResult {
+export function checkCurrentLicense(customAuthorityPublicKeyPem?: string): LicenseValidationResult {
   const sharedDir = getSharedDataDir();
   const vidansLicPath = path.join(sharedDir, 'license.vidanslic');
   const legacyLicPath = path.join(sharedDir, 'license.dblic');
@@ -204,7 +205,7 @@ export function checkCurrentLicense(): LicenseValidationResult {
   try {
     const raw = fs.readFileSync(activePath, 'utf8');
     const parsed: SignedLicenseFile = JSON.parse(raw);
-    return verifyLicense(parsed);
+    return verifyLicense(parsed, customAuthorityPublicKeyPem);
   } catch (err: any) {
     return {
       isValid: false,
@@ -216,10 +217,10 @@ export function checkCurrentLicense(): LicenseValidationResult {
 }
 
 // Save license file to shared directory
-export function installLicense(licenseContentStr: string): LicenseValidationResult {
+export function installLicense(licenseContentStr: string, customAuthorityPublicKeyPem?: string): LicenseValidationResult {
   try {
     const parsed: SignedLicenseFile = JSON.parse(licenseContentStr);
-    const result = verifyLicense(parsed);
+    const result = verifyLicense(parsed, customAuthorityPublicKeyPem);
 
     if (!result.isValid) {
       return result;

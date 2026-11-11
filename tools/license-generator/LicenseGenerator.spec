@@ -1,11 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['license_generator_gui.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('keys/*', 'keys')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

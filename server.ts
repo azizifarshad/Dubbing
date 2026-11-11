@@ -1,4 +1,5 @@
-import express, { Request, Response } from 'express';
+﻿import express, { Request, Response } from 'express';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
@@ -15,10 +16,56 @@ import {
 } from './src/utils/licenseManager.ts';
 import { getHardwareInfo } from './src/utils/hardwareIdentity.ts';
 import { PRODUCT_NAME } from './src/utils/licenseConfig.ts';
+import {
+  UPDATE_APP_NAME,
+  UPDATE_AUTHORITY_PUBLIC_KEY_PEM,
+  buildCanonicalManifestString as buildCanonicalUpdateManifestString,
+} from './src/utils/updateConfig.ts';
 
 dotenv.config();
 
 const appDir = typeof __dirname !== 'undefined' ? __dirname : process.cwd();
+
+function getFfmpegBin(): string {
+  const localCandidates = [
+    path.join(appDir, 'runtime', 'ffmpeg', 'ffmpeg.exe'),
+    path.join(appDir, 'ffmpeg.exe'),
+    path.join(process.cwd(), 'runtime', 'ffmpeg', 'ffmpeg.exe'),
+    path.join(process.cwd(), 'ffmpeg.exe')
+  ];
+  for (const p of localCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  if (fs.existsSync('/usr/bin/ffmpeg')) return '/usr/bin/ffmpeg';
+  return 'ffmpeg';
+}
+
+function getFfprobeBin(): string {
+  const localCandidates = [
+    path.join(appDir, 'runtime', 'ffmpeg', 'ffprobe.exe'),
+    path.join(appDir, 'ffprobe.exe'),
+    path.join(process.cwd(), 'runtime', 'ffmpeg', 'ffprobe.exe'),
+    path.join(process.cwd(), 'ffprobe.exe')
+  ];
+  for (const p of localCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  if (fs.existsSync('/usr/bin/ffprobe')) return '/usr/bin/ffprobe';
+  return 'ffprobe';
+}
+
+function getPythonBin(): string {
+  const localCandidates = [
+    path.join(appDir, 'runtime', 'python', 'python.exe'),
+    path.join(appDir, 'python.exe'),
+    path.join(process.cwd(), 'runtime', 'python', 'python.exe'),
+    path.join(process.cwd(), 'python.exe')
+  ];
+  for (const p of localCandidates) {
+    if (fs.existsSync(p)) return p;
+  }
+  return 'python';
+}
 
 const app = express();
 const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 3000;
@@ -47,10 +94,7 @@ app.post(
       await fs.promises.writeFile(tempInputPath, fileBuffer);
 
       // Determine FFmpeg binary location
-      let ffmpegBin = 'ffmpeg';
-      if (fs.existsSync('/usr/bin/ffmpeg')) {
-        ffmpegBin = '/usr/bin/ffmpeg';
-      }
+      let ffmpegBin = getFfmpegBin();
 
       // Exact FFmpeg command as requested:
       // ffmpeg -i <input> -vn -acodec pcm_s16le -ar 44100 -ac 2 -y <output.wav>
@@ -134,8 +178,8 @@ app.post(
 
       await fs.promises.writeFile(tempInputPath, fileBuffer);
 
-      let ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
-      let ffprobeBin = fs.existsSync('/usr/bin/ffprobe') ? '/usr/bin/ffprobe' : 'ffprobe';
+      let ffmpegBin = getFfmpegBin();
+      let ffprobeBin = getFfprobeBin();
 
       // 1. Probe for subtitle streams
       const probeResult = await new Promise<{ streams: any[] }>((resolve) => {
@@ -272,7 +316,7 @@ app.post(
 
       await fs.promises.writeFile(tempInputVideo, fileBuffer);
 
-      let ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
+      let ffmpegBin = getFfmpegBin();
 
       // 1. Extract audio stream to compact, high-clarity 16kHz mono MP3
       await new Promise<void>((resolve, reject) => {
@@ -306,7 +350,7 @@ app.post(
         console.log('[Local Whisper] Transcribing speech locally with Faster-Whisper on user PC (Zero cloud STT cost)...');
         try {
           const localSegments = await new Promise<any[]>((resolve, reject) => {
-            const pyProc = spawn('python', ['local_whisper.py', tempAudioMp3, 'base']);
+            const pyProc = spawn(getPythonBin(), ['local_whisper.py', tempAudioMp3, 'base']);
             let stdout = '';
             let stderr = '';
             pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
@@ -1134,6 +1178,135 @@ export function extractJsonFromLlmResponse(rawContent: string): any {
   throw new Error('قالب پاسخ ترجمه هرمز معتبر نبود (متن JSON معتبر یافت نشد).');
 }
 
+// Hormouz AI (or OpenAI-compatible) translation runner with resilient multi-attempt retry and adaptive sub-chunking
+async function translateHormouzChunk(
+  chunk: Array<{ id: number; text: string; start: number; end: number; duration: number; englishWordCount: number; maxBudgetWords: number }>,
+  style: string,
+  config: ApiRuntimeConfig,
+  customPrompt?: string
+): Promise<any[]> {
+  const promptText = buildPromptForLines(chunk, style, customPrompt);
+  let lastErr: any = null;
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      console.log(`[Hormouz Translate] Attempt ${attempt + 1}/3 for lines ${chunk[0].id}..${chunk[chunk.length - 1].id} with model "${config.translationModel}"...`);
+
+      const res = await fetch(`${config.baseUrl}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${config.apiKey}`,
+        },
+        body: JSON.stringify({
+          model: config.translationModel,
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You are an expert English-to-Persian translator for video dubbing. You MUST reply with valid JSON only adhering strictly to: {"translations": [{"id": 1, "farsiText": "...", "characterEmotion": "طبیعی و رسا", "suggestedGender": "male"}]}. Never output conversational chatter, markdown text, or explanations outside the JSON.',
+            },
+            {
+              role: 'user',
+              content: promptText,
+            },
+          ],
+          temperature: 0.3,
+          max_tokens: 4096,
+        }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        let parsedErr: any;
+        try { parsedErr = JSON.parse(errText); } catch {}
+        const msg = parsedErr?.error?.message || parsedErr?.message || errText;
+        const status = res.status;
+        const fatalError = new Error(`خطای سرور هرمز (${status}): ${msg}`);
+
+        // If error is permission, model restriction, invalid key, or balance (400, 401, 402, 403, 404):
+        // Stop immediately and DO NOT retry to avoid spamming the dashboard with failed requests!
+        if (status === 400 || status === 401 || status === 402 || status === 403 || status === 404) {
+          throw fatalError;
+        }
+        throw fatalError;
+      }
+
+      const responseData: any = await res.json();
+
+      if (responseData?.error) {
+        const errMsg = responseData.error.message || JSON.stringify(responseData.error);
+        throw new Error(`خطای ارائه‌دهنده هرمز: ${errMsg}`);
+      }
+
+      const choice = responseData?.choices?.[0];
+      if (!choice) {
+        throw new Error('سرور هرمز پاسخی بدون فیلد انتخاب (choices) بازگرداند.');
+      }
+
+      if (choice?.message?.refusal) {
+        throw new Error(`درخواست ترجمه توسط فیلتر محتوای مدل رد شد: ${choice.message.refusal}`);
+      }
+
+      const rawContent = (
+        choice?.message?.content ||
+        choice?.text ||
+        choice?.message?.reasoning_content ||
+        choice?.message?.reasoning ||
+        choice?.message?.thought ||
+        choice?.delta?.content ||
+        ''
+      ).trim();
+
+      if (!rawContent) {
+        if (choice?.finish_reason === 'length') {
+          throw new Error('پاسخ مدل به دلیل محدودیت سقف توکن ناقص ماند (finish_reason: length).');
+        }
+        throw new Error('پاسخ دریافتی از مدل هرمز خالی بود یا ساختار نامعتبر داشت.');
+      }
+
+      const parsed = extractJsonFromLlmResponse(rawContent);
+
+      let rawList: any[] = [];
+      if (Array.isArray(parsed?.translations)) {
+        rawList = parsed.translations;
+      } else if (Array.isArray(parsed)) {
+        rawList = parsed;
+      } else if (Array.isArray(parsed?.result)) {
+        rawList = parsed.result;
+      } else if (Array.isArray(parsed?.data)) {
+        rawList = parsed.data;
+      } else if (Array.isArray(parsed?.subtitles)) {
+        rawList = parsed.subtitles;
+      } else if (Array.isArray(parsed?.lines)) {
+        rawList = parsed.lines;
+      } else if (parsed && typeof parsed === 'object') {
+        const candidate = Object.values(parsed).find(Array.isArray);
+        if (candidate) rawList = candidate as any[];
+      }
+
+      if (rawList.length === 0) {
+        throw new Error('آرایه ترجمه‌ها در خروجی هوش مصنوعی هرمز یافت نشد.');
+      }
+
+      return rawList;
+    } catch (err: any) {
+      lastErr = err;
+      const isFatal = err?.message?.includes('خطای سرور هرمز (40') || err?.message?.includes('فیلتر محتوا');
+      if (isFatal) {
+        throw err;
+      }
+      console.warn(`[Hormouz Translate Attempt ${attempt + 1}] error:`, err?.message);
+      if (attempt < 2) {
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 1500));
+      }
+    }
+  }
+
+  throw lastErr || new Error('پاسخی از مدل ترجمه هرمز دریافت نشد.');
+}
+
 // Hormouz AI (or OpenAI-compatible) translation runner
 async function translateWithHormouz(
   lines: Array<{ id: number; text: string; start: number; end: number; duration: number; englishWordCount: number; maxBudgetWords: number }>,
@@ -1141,115 +1314,48 @@ async function translateWithHormouz(
   config: ApiRuntimeConfig,
   customPrompt?: string
 ): Promise<Array<{ id: number; farsiText: string; characterEmotion?: string; suggestedGender?: string; candidates?: any[] }>> {
-  const CHUNK_SIZE = 15;
+  const CHUNK_SIZE = 12;
   const allTranslations: Array<{ id: number; farsiText: string; characterEmotion?: string; suggestedGender?: string; candidates?: any[] }> = [];
 
   for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
     const chunk = lines.slice(i, i + CHUNK_SIZE);
-    const promptText = buildPromptForLines(chunk, style, customPrompt);
-
-    console.log(`[Hormouz Translate] Requesting model "${config.translationModel}" at ${config.baseUrl} for lines ${chunk[0].id}..${chunk[chunk.length - 1].id}...`);
-
-    let responseData: any = null;
-    let lastErr: any = null;
-
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        const res = await fetch(`${config.baseUrl}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${config.apiKey}`,
-          },
-          body: JSON.stringify({
-            model: config.translationModel,
-            messages: [
-              {
-                role: 'system',
-                content:
-                  'You are an expert English-to-Persian translator for video dubbing. You MUST reply with valid JSON only adhering strictly to: {"translations": [{"id": 1, "farsiText": "...", "characterEmotion": "طبیعی و رسا", "suggestedGender": "male"}]}. Never output conversational chatter, markdown text, or explanations outside the JSON.',
-              },
-              {
-                role: 'user',
-                content: promptText,
-              },
-            ],
-            temperature: 0.3,
-            max_tokens: 4096,
-          }),
-          signal: AbortSignal.timeout(60000),
-        });
-
-        if (!res.ok) {
-          const errText = await res.text();
-          let parsedErr: any;
-          try { parsedErr = JSON.parse(errText); } catch {}
-          const msg = parsedErr?.error?.message || parsedErr?.message || errText;
-          const status = res.status;
-          const fatalError = new Error(`خطای سرور هرمز (${status}): ${msg}`);
-
-          // If error is permission, model restriction, invalid key, or balance (400, 401, 402, 403, 404):
-          // Stop immediately and DO NOT retry to avoid spamming the dashboard with failed requests!
-          if (status === 400 || status === 401 || status === 402 || status === 403 || status === 404) {
-            lastErr = fatalError;
-            break;
-          }
-          throw fatalError;
-        }
-
-        responseData = await res.json();
-        break;
-      } catch (err: any) {
-        lastErr = err;
-        console.warn(`[Hormouz Translate Attempt ${attempt + 1}] error:`, err?.message);
-        if (attempt < 2) await new Promise((r) => setTimeout(r, 2000));
-      }
-    }
-
-    if (!responseData) {
-      throw lastErr || new Error('پاسخی از مدل ترجمه هرمز دریافت نشد.');
-    }
-
-    if (responseData?.error) {
-      const errMsg = responseData.error.message || JSON.stringify(responseData.error);
-      throw new Error(`خطای ارائه‌دهنده هرمز: ${errMsg}`);
-    }
-
-    const choice = responseData?.choices?.[0];
-    const rawContent = (
-      choice?.message?.content ||
-      choice?.text ||
-      (choice?.message?.reasoning_content && !choice?.message?.content ? choice?.message?.reasoning_content : '') ||
-      ''
-    ).trim();
-
-    if (!rawContent) {
-      console.error('[Hormouz Translate] Response choices content was empty:', JSON.stringify(responseData));
-      throw new Error('پاسخ دریافتی از مدل هرمز خالی بود یا ساختار نامعتبر داشت.');
-    }
-
-    const parsed = extractJsonFromLlmResponse(rawContent);
-
     let rawList: any[] = [];
-    if (Array.isArray(parsed?.translations)) {
-      rawList = parsed.translations;
-    } else if (Array.isArray(parsed)) {
-      rawList = parsed;
-    } else if (Array.isArray(parsed?.result)) {
-      rawList = parsed.result;
-    } else if (Array.isArray(parsed?.data)) {
-      rawList = parsed.data;
-    } else if (Array.isArray(parsed?.subtitles)) {
-      rawList = parsed.subtitles;
-    } else if (Array.isArray(parsed?.lines)) {
-      rawList = parsed.lines;
-    } else if (parsed && typeof parsed === 'object') {
-      const candidate = Object.values(parsed).find(Array.isArray);
-      if (candidate) rawList = candidate as any[];
-    }
 
-    if (rawList.length === 0) {
-      throw new Error('آرایه ترجمه‌ها در خروجی هوش مصنوعی هرمز یافت نشد.');
+    try {
+      rawList = await translateHormouzChunk(chunk, style, config, customPrompt);
+    } catch (chunkErr: any) {
+      if (chunkErr?.message?.includes('خطای سرور هرمز (40') || chunkErr?.message?.includes('فیلتر محتوا')) {
+        throw chunkErr;
+      }
+
+      console.warn(`[Hormouz Translate] Chunk ${chunk[0].id}..${chunk[chunk.length - 1].id} failed (${chunkErr.message}). Attempting adaptive sub-chunking in batches of 4...`);
+
+      const SUB_CHUNK_SIZE = 4;
+      let subSuccess = true;
+      const collectedSubList: any[] = [];
+
+      for (let s = 0; s < chunk.length; s += SUB_CHUNK_SIZE) {
+        const subChunk = chunk.slice(s, s + SUB_CHUNK_SIZE);
+        try {
+          const subResult = await translateHormouzChunk(subChunk, style, config, customPrompt);
+          collectedSubList.push(...subResult);
+        } catch (subErr: any) {
+          console.warn(`[Hormouz Translate] Sub-chunk ${subChunk[0].id} failed:`, subErr?.message);
+          subSuccess = false;
+          break;
+        }
+      }
+
+      if (subSuccess && collectedSubList.length > 0) {
+        rawList = collectedSubList;
+      } else {
+        console.warn(`[Hormouz Translate] Using safe fallback translation for lines ${chunk[0].id}..${chunk[chunk.length - 1].id} to avoid losing workflow progress.`);
+        const fallbackResults = await translateWithFallbackEngine(chunk, style);
+        for (const fb of fallbackResults) {
+          allTranslations.push(fb);
+        }
+        continue;
+      }
     }
 
     for (const item of rawList) {
@@ -2317,7 +2423,7 @@ app.post('/api/time-stretch-audio', async (req: Request, res: Response) => {
     const audioBuf = Buffer.from(rawBase64, 'base64');
     await fs.promises.writeFile(tempInPath, audioBuf);
 
-    let ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
+    let ffmpegBin = getFfmpegBin();
 
     // First attempt: High-fidelity Rubber Band pitch-preserving time stretch
     let stretchSuccess = false;
@@ -2523,7 +2629,7 @@ app.post(
 
       // 1. If both intro and logo are disabled, attempt fast stream copy first
       if (!includeIntro && !includeLogo) {
-        const ffmpegBin = fs.existsSync('/usr/bin/ffmpeg') ? '/usr/bin/ffmpeg' : 'ffmpeg';
+        const ffmpegBin = getFfmpegBin();
         try {
           await new Promise<void>((resolve, reject) => {
             const proc = spawn(ffmpegBin, [
@@ -2572,7 +2678,7 @@ app.post(
         if (!includeLogo) pyArgs.push('--no-logo');
 
         await new Promise<void>((resolve, reject) => {
-          const pyProc = spawn('python', pyArgs, { cwd: appDir });
+          const pyProc = spawn(getPythonBin(), pyArgs, { cwd: appDir });
           let stdout = '';
           let stderr = '';
           pyProc.stdout.on('data', (d) => { stdout += d.toString(); });
@@ -2877,6 +2983,639 @@ STRICT CONSTRAINTS & RULES:
   }
 });
 
+// ==============================================================================
+// SECURE AUTOMATIC UPDATE SUBSYSTEM (PHASE 5 & 6)
+// ==============================================================================
+const CURRENT_APP_VERSION = '1.0.1';
+const UPDATE_SERVER_URL = process.env.UPDATE_SERVER_URL || 'http://localhost:4000';
+
+interface UpdateErrorClassification {
+  status: 'offline' | 'unreachable' | 'timeout' | 'error';
+  messageFa: string;
+  technicalDetails: string;
+  endpoint: string;
+  isRetryable: boolean;
+}
+
+function classifyUpdateError(err: any, endpointUrl: string): UpdateErrorClassification {
+  const causeCode = err?.cause?.code || err?.code || '';
+  const rawMsg = err?.message || String(err);
+  let endpointHost = endpointUrl;
+  try {
+    endpointHost = new URL(endpointUrl).host;
+  } catch {}
+
+  if (causeCode === 'ECONNREFUSED' || rawMsg.includes('ECONNREFUSED')) {
+    return {
+      status: 'unreachable',
+      messageFa: `سرور به‌روزرسانی (${endpointHost}) در دسترس نیست یا سرویس آن غیرفعال است. لطفاً اتصال اینترنت را بررسی نموده یا بعداً مجدداً تلاش فرمایید.`,
+      technicalDetails: `TCP Connection Refused (ECONNREFUSED) to ${endpointUrl}`,
+      endpoint: endpointUrl,
+      isRetryable: true,
+    };
+  }
+
+  if (causeCode === 'ENOTFOUND' || rawMsg.includes('ENOTFOUND') || rawMsg.includes('getaddrinfo')) {
+    return {
+      status: 'unreachable',
+      messageFa: `دامنه سرور به‌روزرسانی (${endpointHost}) شناسایی نشد (خطای DNS). لطفاً اتصال اینترنت یا تنظیمات شبکه را بررسی فرمایید.`,
+      technicalDetails: `DNS Resolution Error (ENOTFOUND) for ${endpointUrl}`,
+      endpoint: endpointUrl,
+      isRetryable: true,
+    };
+  }
+
+  if (
+    causeCode === 'ETIMEDOUT' ||
+    err?.name === 'TimeoutError' ||
+    err?.name === 'AbortError' ||
+    rawMsg.includes('timeout')
+  ) {
+    return {
+      status: 'timeout',
+      messageFa: 'مهلت زمان اتصال به سرور به‌روزرسانی به پایان رسید (Timeout). لطفاً سرعت اینترنت را بررسی و مجدداً تلاش فرمایید.',
+      technicalDetails: `Request timeout (15000ms exceeded) to ${endpointUrl}`,
+      endpoint: endpointUrl,
+      isRetryable: true,
+    };
+  }
+
+  if (
+    causeCode.includes('CERT_') ||
+    rawMsg.includes('certificate') ||
+    rawMsg.includes('SSL') ||
+    rawMsg.includes('TLS')
+  ) {
+    return {
+      status: 'error',
+      messageFa: 'خطای اعتبارسنجی امنیتی SSL/TLS در برقراری ارتباط با سرور به‌روزرسانی.',
+      technicalDetails: `TLS Handshake Error: ${rawMsg}`,
+      endpoint: endpointUrl,
+      isRetryable: false,
+    };
+  }
+
+  if (rawMsg.includes('fetch failed') || causeCode === 'ECONNRESET' || causeCode === 'EHOSTUNREACH') {
+    return {
+      status: 'offline',
+      messageFa: 'ارتباط با سرور به‌روزرسانی برقرار نشد. سرور به‌روزرسانی در دسترس نیست یا دسترسی به شبکه مسدود می‌باشد.',
+      technicalDetails: `Fetch Failed (${causeCode || 'Network Error'}): ${rawMsg}`,
+      endpoint: endpointUrl,
+      isRetryable: true,
+    };
+  }
+
+  return {
+    status: 'error',
+    messageFa: `خطا در فرآیند بررسی به‌روزرسانی: ${rawMsg}`,
+    technicalDetails: rawMsg,
+    endpoint: endpointUrl,
+    isRetryable: true,
+  };
+}
+
+// Dedicated Update Authority Public Key for Ed25519 signature verification
+// NOTE: Strictly isolated from the software owner's licensing public key
+function getUpdateAuthorityPublicKeyPem(): string {
+  const localPaths = [
+    path.join(appDir, 'tools', 'update-signer', 'keys', 'update_signer_public_key.pem'),
+    path.join(process.cwd(), 'tools', 'update-signer', 'keys', 'update_signer_public_key.pem'),
+    path.join(appDir, 'keys', 'update_signer_public_key.pem')
+  ];
+  for (const p of localPaths) {
+    if (fs.existsSync(p)) {
+      return fs.readFileSync(p, 'utf8');
+    }
+  }
+  return UPDATE_AUTHORITY_PUBLIC_KEY_PEM;
+}
+
+interface AppUpdateState {
+  currentVersion: string;
+  channel: 'stable' | 'beta';
+  autoUpdateEnabled: boolean;
+  updateInfo: any | null;
+  progress: {
+    status: 'idle' | 'checking' | 'available' | 'up_to_date' | 'downloading' | 'downloaded' | 'verifying' | 'ready_to_install' | 'installing' | 'error';
+    progressPercent: number;
+    downloadedBytes: number;
+    totalBytes: number;
+    errorMessage?: string;
+    technicalDetails?: string;
+  };
+  downloadedFilePath: string | null;
+}
+
+const appUpdateState: AppUpdateState = {
+  currentVersion: CURRENT_APP_VERSION,
+  channel: 'stable',
+  autoUpdateEnabled: true,
+  updateInfo: null,
+  progress: {
+    status: 'idle',
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: 0,
+  },
+  downloadedFilePath: null,
+};
+
+function verifyUpdateManifestSignature(manifest: any): boolean {
+  if (!manifest || !manifest.signature) return false;
+  try {
+    const pubKeyPem = getUpdateAuthorityPublicKeyPem();
+    const canonical = manifest.canonicalString || buildCanonicalUpdateManifestString(
+      manifest.appName || UPDATE_APP_NAME,
+      manifest.version,
+      manifest.channel || 'stable',
+      manifest.os || 'windows',
+      manifest.arch || 'x64',
+      manifest.sha256,
+      manifest.fileSizeBytes || manifest.size || 0,
+      manifest.minSupportedVersion || '1.0.0'
+    );
+    const sigBuf = Buffer.from(manifest.signature, 'base64');
+    return crypto.verify(null, Buffer.from(canonical, 'utf8'), pubKeyPem, sigBuf);
+  } catch (err) {
+    console.error('[Update Verify Error]:', err);
+    return false;
+  }
+}
+
+app.get('/api/app-update/status', (_req: Request, res: Response) => {
+  return res.json({
+    currentVersion: appUpdateState.currentVersion,
+    channel: appUpdateState.channel,
+    autoUpdateEnabled: appUpdateState.autoUpdateEnabled,
+    updateInfo: appUpdateState.updateInfo,
+    progress: appUpdateState.progress,
+  });
+});
+
+app.post('/api/app-update/preferences', (req: Request, res: Response) => {
+  const { autoUpdateEnabled, channel } = req.body;
+  if (typeof autoUpdateEnabled === 'boolean') {
+    appUpdateState.autoUpdateEnabled = autoUpdateEnabled;
+  }
+  if (channel === 'stable' || channel === 'beta') {
+    appUpdateState.channel = channel;
+  }
+  return res.json({ success: true, state: appUpdateState });
+});
+
+function compareSemver(v1: string, v2: string): number {
+  const clean1 = (v1 || '').replace(/^v/, '').trim();
+  const clean2 = (v2 || '').replace(/^v/, '').trim();
+
+  const [main1, pre1] = clean1.split('-');
+  const [main2, pre2] = clean2.split('-');
+
+  const parts1 = main1.split('.').map((p) => parseInt(p, 10) || 0);
+  const parts2 = main2.split('.').map((p) => parseInt(p, 10) || 0);
+
+  for (let i = 0; i < Math.max(parts1.length, parts2.length); i++) {
+    const num1 = parts1[i] || 0;
+    const num2 = parts2[i] || 0;
+    if (num1 > num2) return 1;
+    if (num1 < num2) return -1;
+  }
+
+  if (pre1 && !pre2) return -1;
+  if (!pre1 && pre2) return 1;
+  if (pre1 && pre2) {
+    return pre1.localeCompare(pre2);
+  }
+
+  return 0;
+}
+
+app.post('/api/app-update/check', async (req: Request, res: Response) => {
+  const reqChannel = req.body?.channel || appUpdateState.channel;
+  appUpdateState.channel = reqChannel;
+  appUpdateState.progress = {
+    status: 'checking',
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: 0,
+  };
+
+  let hwFingerprint = '';
+  try {
+    const hw = await getHardwareInfo();
+    hwFingerprint = hw.hardwareFingerprint;
+  } catch {}
+
+  const checkUrl = `${UPDATE_SERVER_URL}/api/updates/check?version=${appUpdateState.currentVersion}&channel=${reqChannel}&os=win&arch=x64`;
+  console.log(`[App Update] Querying update server at: ${checkUrl}`);
+
+  let serverRes: any = null;
+  let serverFetchErr: any = null;
+
+  try {
+    serverRes = await fetch(checkUrl, {
+      headers: {
+        'User-Agent': `DubbingVidans-Client/${appUpdateState.currentVersion}`,
+        'X-Hardware-Fingerprint': hwFingerprint,
+      },
+      signal: AbortSignal.timeout(15000),
+    });
+  } catch (fErr: any) {
+    serverFetchErr = fErr;
+  }
+
+  // 1. If update server responded successfully
+  if (serverRes && serverRes.ok) {
+    try {
+      const data: any = await serverRes.json();
+      if (data.updateAvailable) {
+        if (data.signature) {
+          const isSigValid = verifyUpdateManifestSignature({
+            appName: 'Dubbing Vidans',
+            version: data.latestVersion,
+            channel: reqChannel,
+            os: 'windows',
+            arch: 'x64',
+            sha256: data.sha256,
+            fileSizeBytes: data.sizeBytes,
+            minSupportedVersion: data.minSupportedVersion || '1.0.0',
+            signature: data.signature,
+          });
+
+          if (!isSigValid) {
+            console.warn('[App Update] Manifest signature verification failed! Update rejected.');
+            appUpdateState.progress = {
+              status: 'error',
+              progressPercent: 0,
+              downloadedBytes: 0,
+              totalBytes: 0,
+              errorMessage: 'امضای دیجیتال بسته به‌روزرسانی نامعتبر است. جهت حفظ امنیت از دریافت آن خودداری شد.',
+            };
+            return res.status(400).json({ error: 'Update rejected: Invalid cryptographic signature.' });
+          }
+        }
+
+        appUpdateState.updateInfo = data;
+        appUpdateState.progress = {
+          status: 'available',
+          progressPercent: 0,
+          downloadedBytes: 0,
+          totalBytes: data.sizeBytes || 0,
+        };
+      } else {
+        appUpdateState.updateInfo = data;
+        appUpdateState.progress = {
+          status: 'up_to_date',
+          progressPercent: 0,
+          downloadedBytes: 0,
+          totalBytes: 0,
+        };
+      }
+      return res.json(data);
+    } catch (parseErr: any) {
+      serverFetchErr = parseErr;
+    }
+  }
+
+  // 2. Fallback: If developer provided GITHUB_TOKEN in .env (for dev/admin testing without separate update-server)
+  if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
+    try {
+      console.log('[App Update] Attempting direct fallback query to GitHub Releases via GITHUB_TOKEN...');
+      const ghRes = await fetch('https://api.github.com/repos/azizifarshad/Dubbing/releases?per_page=10', {
+        headers: {
+          Authorization: `token ${process.env.GITHUB_TOKEN.trim()}`,
+          Accept: 'application/vnd.github.v3+json',
+          'User-Agent': `DubbingVidans-Client/${appUpdateState.currentVersion}`,
+        },
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (ghRes.ok) {
+        const releases: any[] = await ghRes.json();
+        if (Array.isArray(releases) && releases.length > 0) {
+          let candidate = releases.find((r: any) => {
+            if (reqChannel === 'beta') return true;
+            return !r.prerelease && !r.draft;
+          });
+          if (!candidate && releases.length > 0) candidate = releases[0];
+
+          const rawTag = candidate.tag_name || candidate.name || '0.0.0';
+          const latestVersion = rawTag.replace(/^v/, '');
+          const hasNewer = compareSemver(latestVersion, appUpdateState.currentVersion) > 0;
+
+          let manifestData: any = null;
+          const manifestAsset = candidate.assets?.find((a: any) => a.name === 'update-manifest.json');
+          const installerAsset = candidate.assets?.find((a: any) =>
+            a.name.endsWith('.exe') && !a.name.includes('Generator')
+          ) || candidate.assets?.[0];
+
+          if (manifestAsset) {
+            try {
+              const mfRes = await fetch(manifestAsset.url, {
+                headers: {
+                  Authorization: `token ${process.env.GITHUB_TOKEN!.trim()}`,
+                  Accept: 'application/octet-stream',
+                  'User-Agent': `DubbingVidans-Client/${appUpdateState.currentVersion}`,
+                },
+                signal: AbortSignal.timeout(10000),
+              });
+              if (mfRes.ok) {
+                manifestData = await mfRes.json();
+              }
+            } catch (mfErr: any) {
+              console.warn('[App Update] Could not parse manifest asset from GitHub:', mfErr.message);
+            }
+          }
+
+          const hostPort = process.env.PORT || '3000';
+          const downloadUrl = installerAsset
+            ? `http://127.0.0.1:${hostPort}/api/app-update/download-asset/${installerAsset.id}?name=${encodeURIComponent(installerAsset.name)}`
+            : '';
+
+          const directData: any = {
+            updateAvailable: hasNewer,
+            currentVersion: appUpdateState.currentVersion,
+            latestVersion,
+            channel: reqChannel,
+            releaseName: candidate.name || `Dubbing Vidans v${latestVersion}`,
+            releaseNotes: manifestData?.releaseNotes || candidate.body || 'به‌روزرسانی‌های عملکردی و امنیتی.',
+            releaseNotesFa: manifestData?.releaseNotesFa || 'به‌روزرسانی‌های سرعت، پایداری و بهبود الگوریتم‌های سینک صوتی.',
+            downloadUrl,
+            sizeBytes: installerAsset?.size || manifestData?.fileSizeBytes || 0,
+            sha256: manifestData?.sha256 || '',
+            signature: manifestData?.signature || '',
+            minSupportedVersion: manifestData?.minSupportedVersion || '1.0.0',
+            status: hasNewer ? ('available' as const) : ('up_to_date' as const),
+          };
+
+          if (hasNewer && directData.signature) {
+            const isSigValid = verifyUpdateManifestSignature({
+              appName: 'Dubbing Vidans',
+              version: latestVersion,
+              channel: reqChannel,
+              os: 'windows',
+              arch: 'x64',
+              sha256: directData.sha256,
+              fileSizeBytes: directData.sizeBytes,
+              minSupportedVersion: directData.minSupportedVersion,
+              signature: directData.signature,
+            });
+            if (!isSigValid) {
+              console.warn('[App Update Direct GitHub] Signature verification failed! Rejecting update.');
+              return res.status(400).json({ error: 'Update rejected: Invalid cryptographic signature.' });
+            }
+          }
+
+          appUpdateState.updateInfo = directData;
+          appUpdateState.progress = {
+            status: hasNewer ? 'available' : 'up_to_date',
+            progressPercent: 0,
+            downloadedBytes: 0,
+            totalBytes: directData.sizeBytes || 0,
+          };
+          return res.json(directData);
+        } else {
+          // No releases in repository yet -> current version is latest
+          const noReleaseData = {
+            updateAvailable: false,
+            currentVersion: appUpdateState.currentVersion,
+            latestVersion: appUpdateState.currentVersion,
+            channel: reqChannel,
+            status: 'up_to_date' as const,
+            messageFa: 'شما در حال حاضر از آخرین نسخه پایدار نرم‌افزار استفاده می‌کنید.',
+          };
+          appUpdateState.updateInfo = noReleaseData;
+          appUpdateState.progress = {
+            status: 'up_to_date',
+            progressPercent: 0,
+            downloadedBytes: 0,
+            totalBytes: 0,
+          };
+          return res.json(noReleaseData);
+        }
+      }
+    } catch (ghErr: any) {
+      console.warn('[App Update] Direct GitHub fallback failed:', ghErr.message);
+    }
+  }
+
+  // 3. Update server could not be reached: classify and return structured, informative response
+  const finalError = serverFetchErr || new Error(`Server returned HTTP ${serverRes?.status || 'UNKNOWN'}`);
+  const classified = classifyUpdateError(finalError, checkUrl);
+
+  console.warn(`[App Update Check]: ${classified.technicalDetails}`);
+
+  appUpdateState.progress = {
+    status: 'error',
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: 0,
+    errorMessage: classified.messageFa,
+    technicalDetails: classified.technicalDetails,
+  };
+
+  return res.json({
+    updateAvailable: false,
+    currentVersion: appUpdateState.currentVersion,
+    status: classified.status,
+    errorMessageFa: classified.messageFa,
+    technicalDetails: classified.technicalDetails,
+    endpoint: classified.endpoint,
+    isRetryable: classified.isRetryable,
+  });
+});
+
+// Stream GitHub release asset for direct fallback
+app.get('/api/app-update/download-asset/:assetId', async (req: Request, res: Response) => {
+  const assetId = req.params.assetId;
+  const fileName = (req.query.name as string) || 'Dubbing-Vidans-Setup.exe';
+  const token = process.env.GITHUB_TOKEN?.trim();
+
+  if (!token) {
+    return res.status(401).json({ error: 'GitHub token required to download asset from private repository.' });
+  }
+
+  try {
+    const assetUrl = `https://api.github.com/repos/azizifarshad/Dubbing/releases/assets/${assetId}`;
+    const assetRes = await fetch(assetUrl, {
+      headers: {
+        Authorization: `token ${token}`,
+        Accept: 'application/octet-stream',
+        'User-Agent': `DubbingVidans-Client/${appUpdateState.currentVersion}`,
+      },
+    });
+
+    if (!assetRes.ok) {
+      return res.status(assetRes.status).send(`Failed to stream asset (${assetRes.status})`);
+    }
+
+    const contentLength = assetRes.headers.get('content-length');
+    res.setHeader('Content-Type', 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+    if (contentLength) res.setHeader('Content-Length', contentLength);
+
+    if (assetRes.body) {
+      const reader = assetRes.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          res.end();
+          break;
+        }
+        if (value) {
+          res.write(Buffer.from(value));
+        }
+      }
+    } else {
+      res.end();
+    }
+  } catch (err: any) {
+    console.error('[Download Asset Error]:', err.message);
+    if (!res.headersSent) {
+      res.status(500).json({ error: err.message });
+    }
+  }
+});
+
+app.post('/api/app-update/download', async (_req: Request, res: Response) => {
+  const updateInfo = appUpdateState.updateInfo;
+  if (!updateInfo || !updateInfo.downloadUrl) {
+    return res.status(400).json({ error: 'No update available to download.' });
+  }
+
+  const updatesDir = path.join(appDir, 'updates');
+  if (!fs.existsSync(updatesDir)) {
+    fs.mkdirSync(updatesDir, { recursive: true });
+  }
+
+  const targetFileName = 'Dubbing-Vidans-Setup.exe';
+  const targetPath = path.join(updatesDir, targetFileName);
+
+  appUpdateState.progress = {
+    status: 'downloading',
+    progressPercent: 0,
+    downloadedBytes: 0,
+    totalBytes: updateInfo.sizeBytes || 0,
+  };
+
+  // Run download in background
+  (async () => {
+    try {
+      let effectiveDownloadUrl = updateInfo.downloadUrl;
+      if (effectiveDownloadUrl.startsWith('/')) {
+        effectiveDownloadUrl = `http://127.0.0.1:${PORT}${effectiveDownloadUrl}`;
+      }
+      console.log(`[App Update Download] Fetching installer from: ${effectiveDownloadUrl}`);
+      const downloadRes = await fetch(effectiveDownloadUrl);
+      if (!downloadRes.ok) {
+        throw new Error(`Download failed with status ${downloadRes.status}`);
+      }
+
+      const totalLen = parseInt(downloadRes.headers.get('content-length') || `${updateInfo.sizeBytes || 0}`, 10);
+      appUpdateState.progress.totalBytes = totalLen;
+
+      const fileStream = fs.createWriteStream(targetPath);
+      const sha256Hasher = crypto.createHash('sha256');
+      let receivedBytes = 0;
+
+      if (!downloadRes.body) {
+        throw new Error('Response body stream is empty');
+      }
+
+      const reader = downloadRes.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (value) {
+          const buf = Buffer.from(value);
+          fileStream.write(buf);
+          sha256Hasher.update(buf);
+          receivedBytes += buf.length;
+          appUpdateState.progress.downloadedBytes = receivedBytes;
+          if (totalLen > 0) {
+            appUpdateState.progress.progressPercent = Math.min(100, Math.round((receivedBytes / totalLen) * 100));
+          }
+        }
+      }
+
+      fileStream.end();
+
+      await new Promise<void>((resolve, reject) => {
+        fileStream.on('finish', () => resolve());
+        fileStream.on('error', reject);
+      });
+
+      // Verification
+      appUpdateState.progress.status = 'verifying';
+      const downloadedSha256 = sha256Hasher.digest('hex');
+      console.log(`[App Update Download] Completed. Computed SHA-256: ${downloadedSha256}`);
+
+      if (updateInfo.sha256 && updateInfo.sha256.toLowerCase() !== downloadedSha256.toLowerCase()) {
+        try { fs.unlinkSync(targetPath); } catch {}
+        throw new Error(`Checksum mismatch! Expected: ${updateInfo.sha256}, Got: ${downloadedSha256}`);
+      }
+
+      appUpdateState.downloadedFilePath = targetPath;
+      appUpdateState.progress = {
+        status: 'ready_to_install',
+        progressPercent: 100,
+        downloadedBytes: receivedBytes,
+        totalBytes: receivedBytes,
+      };
+      console.log('[App Update] Ready to install update.');
+    } catch (dlErr: any) {
+      console.error('[App Update Download Error]:', dlErr.message);
+      const classified = classifyUpdateError(dlErr, updateInfo.downloadUrl);
+      appUpdateState.progress = {
+        status: 'error',
+        progressPercent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0,
+        errorMessage: classified.messageFa,
+        errorMessageFa: classified.messageFa,
+        technicalDetails: classified.technicalDetails,
+      };
+    }
+  })();
+
+  return res.json({ success: true, message: 'Download initiated.' });
+});
+
+app.post('/api/app-update/install', async (_req: Request, res: Response) => {
+  const filePath = appUpdateState.downloadedFilePath;
+  if (!filePath || !fs.existsSync(filePath)) {
+    return res.status(400).json({ error: 'Downloaded installer file not found. Please download again.' });
+  }
+
+  console.log(`[App Update Install] Launching installer: ${filePath}`);
+  appUpdateState.progress.status = 'installing';
+
+  try {
+    // Launch installer in detached mode so it outlives this server process
+    const child = spawn(filePath, ['/SILENT'], {
+      detached: true,
+      stdio: 'ignore',
+    });
+    child.unref();
+
+    res.json({
+      success: true,
+      message: 'Installer launched. Application will now restart to apply updates.',
+      messageFa: 'فرآیند نصب آغاز شد. برنامه در حال راه‌اندازی مجدد است.',
+    });
+
+    // Clean exit after 1.5 seconds to let response flush
+    setTimeout(() => {
+      console.log('[App Update Install] Gracefully terminating server for upgrade.');
+      process.exit(0);
+    }, 1500);
+  } catch (err: any) {
+    console.error('[App Update Launch Error]:', err.message);
+    appUpdateState.progress.status = 'error';
+    appUpdateState.progress.errorMessage = err.message;
+    return res.status(500).json({ error: err.message });
+  }
+});
+
 // Start server with Vite middleware in development or static serve in production
 async function startServer() {
   const distPath = path.resolve(appDir, 'dist');
@@ -2906,8 +3645,36 @@ async function startServer() {
     }
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Vidans: http://localhost:${PORT}`);
+  const host = process.env.HOST || '127.0.0.1';
+  app.listen(PORT, host, () => {
+    console.log(`Vidans: http://${host}:${PORT}`);
+
+    // Auto-check for updates 5 seconds after startup in background
+    setTimeout(async () => {
+      if (appUpdateState.autoUpdateEnabled) {
+        try {
+          console.log('[Auto-Update Background] Checking for available updates on startup...');
+          await fetch(`http://127.0.0.1:${PORT}/api/app-update/check`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel: appUpdateState.channel }),
+          });
+        } catch {}
+      }
+    }, 5000);
+
+    // Periodically check every 4 hours
+    setInterval(async () => {
+      if (appUpdateState.autoUpdateEnabled) {
+        try {
+          await fetch(`http://127.0.0.1:${PORT}/api/app-update/check`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ channel: appUpdateState.channel }),
+          });
+        } catch {}
+      }
+    }, 4 * 60 * 60 * 1000);
   });
 }
 

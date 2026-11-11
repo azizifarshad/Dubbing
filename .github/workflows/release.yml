@@ -1,0 +1,214 @@
+name: Continuous Delivery & Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - main
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.0.2 - leave empty to read from package.json)'
+        required: false
+        default: ''
+      channel:
+        description: 'Release channel'
+        required: true
+        default: 'stable'
+        type: choice
+        options:
+          - stable
+          - beta
+      notes_en:
+        description: 'Release Notes (English)'
+        required: false
+        default: ''
+      notes_fa:
+        description: 'Release Notes (Persian)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    name: Build, Sign & Publish Secure Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Extract Version & Channel
+        id: meta
+        shell: pwsh
+        run: |
+          $eventName = "${{ github.event_name }}"
+          $ref = "${{ github.ref }}"
+          $inputVer = "${{ github.event.inputs.version }}"
+          $chan = "${{ github.event.inputs.channel }}"
+
+          $pkgJson = Get-Content package.json | ConvertFrom-Json
+          $pkgVer = $pkgJson.version
+
+          $ver = ""
+          $shouldRelease = "true"
+
+          if ($inputVer -and $inputVer.Trim() -ne "") {
+            $ver = $inputVer.Trim().TrimStart("v")
+          } elseif ($eventName -eq "push" -and $ref -like "refs/tags/v*") {
+            $ver = "${{ github.ref_name }}".TrimStart("v")
+          } elseif ($eventName -eq "release") {
+            $ver = "${{ github.event.release.tag_name }}".TrimStart("v")
+          } elseif ($eventName -eq "push" -and $ref -eq "refs/heads/main") {
+            $ver = $pkgVer
+            $existingTag = git tag -l "v$ver"
+            if ($existingTag) {
+              Write-Host "Tag v$ver already exists in repository. Skipping release on main push to prevent duplicate releases."
+              $shouldRelease = "false"
+            } else {
+              Write-Host "Detected new version v$ver in package.json on main branch! Triggering release..."
+              $shouldRelease = "true"
+            }
+          } else {
+            $ver = $pkgVer
+          }
+
+          if (-not $chan -or $chan.Trim() -eq "") {
+            if ($ver -match "(alpha|beta|rc)") {
+              $chan = "beta"
+            } else {
+              $chan = "stable"
+            }
+          }
+
+          Write-Host "Decision: should_release=$shouldRelease, version=$ver, channel=$chan"
+          "should_release=$shouldRelease" >> $env:GITHUB_OUTPUT
+          "version=$ver" >> $env:GITHUB_OUTPUT
+          "channel=$chan" >> $env:GITHUB_OUTPUT
+          "is_prerelease=$($chan -eq 'beta')" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Node.js
+        if: steps.meta.outputs.should_release != 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Set up Python
+        if: steps.meta.outputs.should_release != 'false'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install Python Dependencies
+        if: steps.meta.outputs.should_release != 'false'
+        run: |
+          python -m pip install --upgrade pip
+          pip install cryptography faster-whisper
+
+      - name: Set up FFmpeg
+        if: steps.meta.outputs.should_release != 'false'
+        uses: FedericoCarboni/setup-ffmpeg@v3
+        with:
+          ffmpeg-version: release
+
+      - name: Install Node Dependencies
+        if: steps.meta.outputs.should_release != 'false'
+        run: npm ci
+
+      - name: Run Quality Lint & Type Checks
+        if: steps.meta.outputs.should_release != 'false'
+        run: npm run lint
+
+      - name: Run Full Test Suite (Enforce Zero Regressions)
+        if: steps.meta.outputs.should_release != 'false'
+        run: npm run test:ci
+
+      - name: Build Application Frontend & Server Bundle
+        if: steps.meta.outputs.should_release != 'false'
+        run: npm run build
+
+      - name: Compile Native Desktop Launcher
+        if: steps.meta.outputs.should_release != 'false'
+        shell: pwsh
+        run: |
+          $cscPath = "C:\Windows\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $cscPath)) {
+            $cscPath = (Get-Command csc.exe -ErrorAction SilentlyContinue).Source
+          }
+          & $cscPath /target:winexe /win32icon:assets\Vidans.ico /out:DubbingVidans.exe launcher.cs
+          if (-not (Test-Path "DubbingVidans.exe")) {
+            throw "Failed to compile DubbingVidans.exe"
+          }
+          Write-Host "Successfully compiled DubbingVidans.exe"
+
+      - name: Install Inno Setup
+        if: steps.meta.outputs.should_release != 'false'
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $isccPath = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $isccPath)) {
+            $isccPath = "C:\Program Files\Inno Setup 6\ISCC.exe"
+          }
+          Write-Host "ISCC Path: $isccPath"
+          "ISCC_PATH=$isccPath" >> $env:GITHUB_ENV
+
+      - name: Compile Standalone Windows Installer
+        if: steps.meta.outputs.should_release != 'false'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path "dist-installer"
+          & "$env:ISCC_PATH" "/DMyAppVersion=${{ steps.meta.outputs.version }}" "installer\DubbingVidans_Setup.iss"
+          if (-not (Test-Path "dist-installer\Dubbing-Vidans-Setup.exe")) {
+            throw "Installer output not found at dist-installer\Dubbing-Vidans-Setup.exe"
+          }
+          Write-Host "Installer successfully built."
+
+      - name: Sign Release & Generate Update Manifest
+        if: steps.meta.outputs.should_release != 'false'
+        shell: pwsh
+        env:
+          UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
+        run: |
+          $ver = "${{ steps.meta.outputs.version }}"
+          $chan = "${{ steps.meta.outputs.channel }}"
+          $enNotes = "${{ github.event.inputs.notes_en }}"
+          $faNotes = "${{ github.event.inputs.notes_fa }}"
+          python tools\update-signer\sign_release.py "dist-installer\Dubbing-Vidans-Setup.exe" "$ver" "$chan" "dist-installer"
+          $exeHash = (Get-FileHash DubbingVidans.exe -Algorithm SHA256).Hash.ToLower()
+          "$exeHash  DubbingVidans.exe" | Out-File -FilePath "dist-installer\sha256sums.txt" -Append -Encoding ascii
+          Get-Content "dist-installer\update-manifest.json"
+
+      - name: Publish GitHub Release (Private)
+        if: steps.meta.outputs.should_release != 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ steps.meta.outputs.version }}"
+          name: "Dubbing Vidans v${{ steps.meta.outputs.version }}"
+          prerelease: ${{ steps.meta.outputs.is_prerelease }}
+          draft: false
+          files: |
+            dist-installer/Dubbing-Vidans-Setup.exe
+            dist-installer/update-manifest.json
+            dist-installer/sha256sums.txt
+            DubbingVidans.exe
+          body: |
+            ## Dubbing Vidans v${{ steps.meta.outputs.version }} (${{ steps.meta.outputs.channel }})
+
+            ### Release Highlights / ویژگی‌های این نسخه
+            - ${{ github.event.inputs.notes_en || 'Performance optimizations, security hardening, and stability enhancements.' }}
+            - ${{ github.event.inputs.notes_fa || 'بهبودهای سرعت پردازش، ارتقای امنیت سیستم به‌روزرسانی و رفع ایرادات جزئی.' }}
+
+            ### Verification & Integrity
+            Verify the package checksum using the included `sha256sums.txt` and cryptographic signatures in `update-manifest.json`.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
