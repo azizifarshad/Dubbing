@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { LicenseModal } from './components/LicenseModal';
 import { UpdateModal } from './components/UpdateModal';
+import { ConfirmNewProjectModal } from './components/ConfirmNewProjectModal';
 import { fetchUpdateStatus, checkForUpdates } from './utils/updateManager';
 import { FileUploaderSection } from './components/FileUploaderSection';
 import { TranslationStudio } from './components/TranslationStudio';
@@ -23,6 +24,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldAlert,
+  RotateCcw,
 } from 'lucide-react';
 
 export default function App() {
@@ -134,6 +136,11 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'stepper' | 'all'>('stepper');
   const [showFooterAuthor, setShowFooterAuthor] = useState<boolean>(false);
 
+  // New Project Reset Modal state
+  const [isConfirmNewProjectModalOpen, setIsConfirmNewProjectModalOpen] = useState<boolean>(false);
+  const [isResettingProject, setIsResettingProject] = useState<boolean>(false);
+  const [projectSessionId, setProjectSessionId] = useState<number>(0);
+
   // Check server configuration on load
   useEffect(() => {
     fetch('/api/check-key', {
@@ -215,6 +222,58 @@ export default function App() {
     setSubtitles(items);
   };
 
+  const handleConfirmStartNewProject = () => {
+    setIsResettingProject(true);
+
+    // Revoke previous audio blob url to free up memory
+    if (originalAudioBlobUrl) {
+      try {
+        URL.revokeObjectURL(originalAudioBlobUrl);
+      } catch {
+        // Silently ignore revocation error
+      }
+    }
+
+    // 1. Reset subtitles and text cues
+    setSubtitles([]);
+    setSubtitleFileName('');
+
+    // 2. Reset audio and video tracks
+    setOriginalAudioBuffer(null);
+    setOriginalAudioName('');
+    setOriginalAudioDuration(0);
+    setOriginalAudioBlobUrl(null);
+    setOriginalVideoFile(null);
+
+    // 3. Reset mixing & export states
+    setOutputBaseName('');
+    setMixMode('ducking');
+    setPersianVolume(1.0);
+    setBackgroundVolume(0.2);
+    setDuckingAmount(0.8);
+    setSharedWavBlob(null);
+    setSharedAudioBuffer(null);
+    setSharedDuration(0);
+
+    // 4. Return to Step 1
+    setActiveStep(1);
+    setViewMode('stepper');
+
+    // 5. Force unmount/remount of all step studios to purge internal state
+    setProjectSessionId((prev) => prev + 1);
+
+    // 6. Clean project temporary storage if any (without touching API keys, licenses, update flags)
+    try {
+      sessionStorage.removeItem('vidans_current_project');
+      sessionStorage.removeItem('persian_dub_temp_subtitles');
+    } catch {
+      // Ignore sessionStorage failures
+    }
+
+    setIsResettingProject(false);
+    setIsConfirmNewProjectModalOpen(false);
+  };
+
   // Progress calculations
   const translatedCount = subtitles.filter((s) => s.farsiText.trim().length > 0).length;
   const readyVoicesCount = subtitles.filter((s) => s.audioBase64).length;
@@ -270,6 +329,7 @@ export default function App() {
         customerName={licenseStatus?.customerName}
         onOpenUpdateModal={() => setIsUpdateModalOpen(true)}
         hasUpdateAvailable={hasUpdateAvailable}
+        onStartNewProject={() => setIsConfirmNewProjectModalOpen(true)}
       />
 
       {/* Main Studio Container */}
@@ -317,6 +377,28 @@ export default function App() {
           </div>
 
           <div className="absolute -left-12 -bottom-12 w-72 h-72 bg-[#099767]/15 rounded-full blur-3xl pointer-events-none" />
+        </div>
+
+        {/* Workflow Bar Header & Start New Project Button */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-1">
+          <div className="flex items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#099767] animate-pulse" />
+            <span className="text-xs sm:text-sm font-bold text-slate-200">مراحل فرآیند دوبله ویدانس</span>
+            {subtitles.length > 0 && (
+              <span className="text-xs text-slate-400 font-mono bg-slate-800/80 px-2.5 py-0.5 rounded-lg border border-slate-700/60">
+                {subtitles.length} دیالوگ بارگذاری‌شده
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsConfirmNewProjectModalOpen(true)}
+            className="self-start sm:self-auto flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-200 border cursor-pointer bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border-rose-500/30 hover:border-rose-500/50 shadow-sm active:scale-95 group"
+            title="شروع دوبله جدید و بازنشانی پروژه فعلی"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-rose-400 group-hover:-rotate-90 transition-transform duration-300" />
+            <span>شروع دوبله جدید</span>
+          </button>
         </div>
 
         {/* Stepper Navigation Bar */}
@@ -370,7 +452,7 @@ export default function App() {
         </div>
 
         {/* Dynamic Studio Stage Views with smooth fade transition */}
-        <div className="space-y-8">
+        <div key={projectSessionId} className="space-y-8">
           {/* Step 1: Uploaders */}
           <div className={`animate-fade-in ${activeStep === 1 || viewMode === 'all' ? 'block' : 'hidden'}`}>
             <FileUploaderSection
@@ -557,6 +639,14 @@ export default function App() {
         isOpen={isUpdateModalOpen}
         onClose={() => setIsUpdateModalOpen(false)}
         onUpdateAvailableBadge={setHasUpdateAvailable}
+      />
+
+      {/* Confirm Start New Dubbing Project Modal */}
+      <ConfirmNewProjectModal
+        isOpen={isConfirmNewProjectModalOpen}
+        onClose={() => setIsConfirmNewProjectModalOpen(false)}
+        onConfirm={handleConfirmStartNewProject}
+        isResetting={isResettingProject}
       />
     </div>
   );

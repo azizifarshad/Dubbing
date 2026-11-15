@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
-    "test:ci": "tsx tests/syncEngine.test.ts && tsx tests/balancedDubbingSystem.test.ts && tsx tests/overlapAndBulkSpeed.test.ts && tsx tests/autoFixTimeline.test.ts && tsx tests/zeroSilenceAndFlexiblePlacement.test.ts && tsx tests/hormouzJsonExtractor.test.ts && tsx tests/licensingSystem.test.ts && tsx tests/autoUpdateSystem.test.ts && tsx tests/githubAutoUpdate.test.ts",
+    "test:ci": "tsx tests/syncEngine.test.ts && tsx tests/balancedDubbingSystem.test.ts && tsx tests/overlapAndBulkSpeed.test.ts && tsx tests/autoFixTimeline.test.ts && tsx tests/zeroSilenceAndFlexiblePlacement.test.ts && tsx tests/hormouzJsonExtractor.test.ts && tsx tests/licensingSystem.test.ts && tsx tests/autoUpdateSystem.test.ts && tsx tests/githubAutoUpdate.test.ts && tsx tests/newProjectReset.test.ts",
     "test:integration": "tsx tests/videoBrandingPipeline.test.ts && tsx tests/offlineSystemIntegration.test.ts",
     "test": "npm run test:ci && npm run test:integration"
   },

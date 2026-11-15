@@ -1,5 +1,5 @@
 import React from 'react';
-import { Key, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Download, RefreshCw } from 'lucide-react';
+import { Key, CheckCircle2, AlertCircle, ShieldCheck, ShieldAlert, Download, RefreshCw, RotateCcw } from 'lucide-react';
 
 interface HeaderProps {
   onOpenApiKeyModal: () => void;
@@ -11,6 +11,7 @@ interface HeaderProps {
   customerName?: string;
   onOpenUpdateModal?: () => void;
   hasUpdateAvailable?: boolean;
+  onStartNewProject?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -23,6 +24,7 @@ export const Header: React.FC<HeaderProps> = ({
   customerName = '',
   onOpenUpdateModal,
   hasUpdateAvailable = false,
+  onStartNewProject,
 }) => {
   return (
     <header className="border-b border-slate-800/80 bg-[#090d11]/85 backdrop-blur-md sticky top-0 z-30 transition-all duration-200">
@@ -38,6 +40,19 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Action Controls & API Key / License Status */}
         <div className="flex items-center gap-3">
+          {/* Start New Dubbing Project Button */}
+          {onStartNewProject && (
+            <button
+              type="button"
+              onClick={onStartNewProject}
+              className="flex items-center gap-2 px-3 sm:px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all duration-200 border cursor-pointer bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 hover:text-rose-200 border-rose-500/30 hover:border-rose-500/50 shadow-sm active:scale-95 group"
+              title="شروع دوبله جدید و بازنشانی پروژه فعلی"
+            >
+              <RotateCcw className="w-4 h-4 text-rose-400 group-hover:-rotate-90 transition-transform duration-300" />
+              <span>شروع دوبله جدید</span>
+            </button>
+          )}
+
           {activeLinesCount > 0 && (
             <div className="hidden md:flex items-center gap-3 text-xs bg-[#0f151d] border border-slate-800 px-3.5 py-2 rounded-xl text-slate-300 shadow-sm">
               <div className="flex items-center gap-1.5">
