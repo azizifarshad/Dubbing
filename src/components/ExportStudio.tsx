@@ -469,7 +469,7 @@ export const ExportStudio: React.FC<ExportStudioProps> = ({
                 لوگوی شفاف و رسمی Vidans در گوشه پایین سمت راست فیلم با فاصله مارجین استاندارد ۲٪ درج می‌شود.
               </p>
               <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-500 font-mono">
-                <span>Logo-Vidans .png</span>
+                <span>Logo-Vidans.png</span>
                 <span>&bull;</span>
                 <span>شفاف بدون پس‌زمینه</span>
                 <span>&bull;</span>

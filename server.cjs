@@ -73207,9 +73207,19 @@ async function startServer() {
   const distPath = import_path3.default.resolve(appDir, "dist");
   const hasDist = import_fs4.default.existsSync(import_path3.default.resolve(distPath, "index.html"));
   const isProd = process.env.NODE_ENV === "production" || hasDist;
+  const staticServeOptions = {
+    maxAge: "1y",
+    immutable: true,
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    }
+  };
   if (isProd) {
-    app.use(import_express.default.static(distPath));
+    app.use(import_express.default.static(distPath, staticServeOptions));
     app.get("*", (_req, res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.sendFile(import_path3.default.resolve(distPath, "index.html"));
     });
   } else {
@@ -73222,8 +73232,9 @@ async function startServer() {
       app.use(vite.middlewares);
     } catch {
       if (hasDist) {
-        app.use(import_express.default.static(distPath));
+        app.use(import_express.default.static(distPath, staticServeOptions));
         app.get("*", (_req, res) => {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
           res.sendFile(import_path3.default.resolve(distPath, "index.html"));
         });
       }

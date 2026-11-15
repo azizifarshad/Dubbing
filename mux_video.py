@@ -28,9 +28,9 @@ def find_asset(filename_candidates):
             return p_parent
     return None
 
-DEFAULT_INTRO_VIDEO = find_asset(["Final  (1).mp4", "intro.mp4"])
+DEFAULT_INTRO_VIDEO = find_asset(["intro.mp4", "Final  (1).mp4"])
 DEFAULT_CACHED_INTRO = ASSETS_DIR / "cache" / "intro_normalized_1080p.mp4"
-DEFAULT_LOGO_IMAGE = find_asset(["Logo-Vidans .png", "logo_watermark.png", "Logo-Vidans.png"])
+DEFAULT_LOGO_IMAGE = find_asset(["Logo-Vidans.png", "logo_watermark.png", "Logo-Vidans .png"])
 
 # Branding parameters
 LOGO_WIDTH_PERCENT = 12
