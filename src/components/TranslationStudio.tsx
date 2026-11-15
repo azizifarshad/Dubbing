@@ -107,7 +107,8 @@ export const TranslationStudio: React.FC<TranslationStudioProps> = ({
   });
   const [selectedStyle, setSelectedStyle] = useState<TranslationStyle>('colloquial');
   const [isTranslating, setIsTranslating] = useState(false);
-  const [translatingLineId, setTranslatingLineId] = useState<number | null>(null);
+  const [translatingLineIds, setTranslatingLineIds] = useState<Set<number>>(new Set());
+  const [lineErrors, setLineErrors] = useState<Record<number, string>>({});
   const [translationError, setTranslationError] = useState<string | null>(null);
 const effectiveModel =
     translationEngine === 'deepseek'
@@ -182,32 +183,50 @@ const effectiveModel =
             translationMap.set(t.id, t);
           }
           const updated = subtitles.map((sub) => {
+            // Protect manual edits from silent replacement during batch translation
+            if (sub.isManuallyEdited && sub.farsiText.trim()) {
+              return sub;
+            }
+
             const trans = translationMap.get(sub.id);
             const fa = trans?.farsiText || translateOfflineLocally(sub.originalText, selectedStyle);
-            return {
-              ...sub,
-              farsiText: fa || sub.farsiText,
-              candidates: trans?.candidates || sub.candidates,
-              selectedCandidateId: trans?.selectedCandidateId || sub.selectedCandidateId,
-              predictedDuration: trans?.predictedDuration || sub.predictedDuration,
-              durationError: trans?.durationError ?? sub.durationError,
-              relativeDurationError: trans?.relativeDurationError ?? sub.relativeDurationError,
-              validationStatus: trans?.validationStatus || sub.validationStatus,
-              balancedSyncStatus: trans?.balancedSyncStatus || sub.balancedSyncStatus,
-              selectionReasonFa: trans?.selectionReasonFa || sub.selectionReasonFa,
-              status: 'translated' as const,
-            };
+            if (fa && fa.trim()) {
+              return {
+                ...sub,
+                farsiText: fa.trim(),
+                candidates: trans?.candidates || sub.candidates,
+                selectedCandidateId: trans?.selectedCandidateId || sub.selectedCandidateId,
+                predictedDuration: trans?.predictedDuration || sub.predictedDuration,
+                durationError: trans?.durationError ?? sub.durationError,
+                relativeDurationError: trans?.relativeDurationError ?? sub.relativeDurationError,
+                validationStatus: trans?.validationStatus || sub.validationStatus,
+                balancedSyncStatus: trans?.balancedSyncStatus || sub.balancedSyncStatus,
+                selectionReasonFa: trans?.selectionReasonFa || sub.selectionReasonFa,
+                status: 'translated' as const,
+                isManuallyEdited: false,
+                translationError: undefined,
+              };
+            }
+            return sub;
           });
           onUpdateAllSubtitles(updated);
         } else {
           // In-browser rule-based fallback
           const updated = subtitles.map((sub) => {
+            if (sub.isManuallyEdited && sub.farsiText.trim()) {
+              return sub;
+            }
             const translatedFa = translateOfflineLocally(sub.originalText, selectedStyle);
-            return {
-              ...sub,
-              farsiText: translatedFa || sub.farsiText,
-              status: 'translated' as const,
-            };
+            if (translatedFa && translatedFa.trim()) {
+              return {
+                ...sub,
+                farsiText: translatedFa.trim(),
+                status: 'translated' as const,
+                isManuallyEdited: false,
+                translationError: undefined,
+              };
+            }
+            return sub;
           });
           onUpdateAllSubtitles(updated);
         }
@@ -267,8 +286,13 @@ const effectiveModel =
         }
 
         const updated = subtitles.map((sub) => {
+          // Protect manual edits from silent replacement during batch translation
+          if (sub.isManuallyEdited && sub.farsiText.trim()) {
+            return sub;
+          }
+
           const trans = translationMap.get(sub.id);
-          if (trans) {
+          if (trans && trans.farsiText && trans.farsiText.trim()) {
             let suggestedVoice = sub.voice;
             if (trans.suggestedGender?.toLowerCase() === 'female') {
               suggestedVoice = 'Kore';
@@ -276,7 +300,7 @@ const effectiveModel =
 
             return {
               ...sub,
-              farsiText: trans.farsiText || sub.farsiText,
+              farsiText: trans.farsiText.trim(),
               emotion: trans.characterEmotion || sub.emotion,
               voice: suggestedVoice,
               candidates: trans.candidates || sub.candidates,
@@ -288,12 +312,26 @@ const effectiveModel =
               balancedSyncStatus: trans.balancedSyncStatus || sub.balancedSyncStatus,
               selectionReasonFa: trans.selectionReasonFa || sub.selectionReasonFa,
               status: 'translated' as const,
+              isManuallyEdited: false,
+              translationError: undefined,
             };
           }
           return sub;
         });
 
         onUpdateAllSubtitles(updated);
+
+        // Clear line errors for lines that successfully translated in batch
+        setLineErrors((prev) => {
+          const next = { ...prev };
+          for (const t of data.translations) {
+            if (t.farsiText && t.farsiText.trim()) {
+              delete next[t.id];
+            }
+          }
+          return next;
+        });
+
         if (data.notice) {
           setTranslationError(data.notice);
         }
@@ -308,10 +346,24 @@ const effectiveModel =
     }
   };
 
-  // Translate Single Line
+  // Translate Single Line Independently
   const handleTranslateSingleLine = async (sub: SubtitleItem) => {
-    setTranslatingLineId(sub.id);
-    setTranslationError(null);
+    if (translatingLineIds.has(sub.id)) return;
+
+    // Protection for manual edits: if line was manually edited, confirm before replacing
+    if (sub.isManuallyEdited && sub.farsiText.trim()) {
+      const confirmReplace = window.confirm(
+        `دیالوگ این خط قبلاً به صورت دستی ویرایش شده است.\nآیا مطمئن هستید که می‌خواهید ترجمه جدید هوش مصنوعی جایگزین متن دستی شما شود؟`
+      );
+      if (!confirmReplace) return;
+    }
+
+    setTranslatingLineIds((prev) => new Set(prev).add(sub.id));
+    setLineErrors((prev) => {
+      const copy = { ...prev };
+      delete copy[sub.id];
+      return copy;
+    });
 
     // Local Engine Single Line
     if (translationEngine === 'local') {
@@ -338,14 +390,28 @@ const effectiveModel =
           fa = translateOfflineLocally(sub.originalText, selectedStyle);
         }
 
-        onUpdateSubtitle(sub.id, {
-          farsiText: fa || sub.farsiText,
-          status: 'translated',
-        });
+        if (fa && fa.trim()) {
+          onUpdateSubtitle(sub.id, {
+            farsiText: fa.trim(),
+            status: 'translated',
+            isManuallyEdited: false,
+            translationError: undefined,
+          });
+        } else {
+          throw new Error('متن ترجمه شده خالی است.');
+        }
       } catch (err: any) {
-        setTranslationError(err?.message || 'خطا در ترجمه محلی این خط.');
+        const errorMsg = err?.message || 'خطا در ترجمه محلی این خط.';
+        setLineErrors((prev) => ({ ...prev, [sub.id]: errorMsg }));
+        onUpdateSubtitle(sub.id, {
+          translationError: errorMsg,
+        });
       } finally {
-        setTranslatingLineId(null);
+        setTranslatingLineIds((prev) => {
+          const next = new Set(prev);
+          next.delete(sub.id);
+          return next;
+        });
       }
       return;
     }
@@ -387,14 +453,15 @@ const effectiveModel =
             data = await res.json();
           } catch (_) {}
         }
-      } catch (fetchErr) {
+      } catch (fetchErr: any) {
         console.warn('Single line fetch network error:', fetchErr);
+        throw new Error('خطا در برقراری ارتباط با سرور ترجمه.');
       }
 
-      if (data?.translations?.[0]) {
+      if (data?.translations?.[0]?.farsiText && data.translations[0].farsiText.trim()) {
         const t = data.translations[0];
         onUpdateSubtitle(sub.id, {
-          farsiText: t.farsiText,
+          farsiText: t.farsiText.trim(),
           emotion: t.characterEmotion || sub.emotion,
           candidates: t.candidates || sub.candidates,
           selectedCandidateId: t.selectedCandidateId || sub.selectedCandidateId,
@@ -405,16 +472,29 @@ const effectiveModel =
           balancedSyncStatus: t.balancedSyncStatus || sub.balancedSyncStatus,
           selectionReasonFa: t.selectionReasonFa || sub.selectionReasonFa,
           status: 'translated',
+          isManuallyEdited: false,
+          translationError: undefined,
         });
       } else {
-        const err = data?.error || 'خطا در ترجمه این خط با هوش مصنوعی.';
-        setTranslationError(err);
+        const err = data?.error || data?.message || 'ترجمه این خط ناموفق بود یا نتیجه‌ای دریافت نشد.';
+        setLineErrors((prev) => ({ ...prev, [sub.id]: err }));
+        onUpdateSubtitle(sub.id, {
+          translationError: err,
+        });
       }
     } catch (err: any) {
       console.warn('Single line translation error:', err);
-      setTranslationError(err?.message || 'خطا در ترجمه خط.');
+      const errMsg = err?.message || 'خطا در ترجمه خط با هوش مصنوعی.';
+      setLineErrors((prev) => ({ ...prev, [sub.id]: errMsg }));
+      onUpdateSubtitle(sub.id, {
+        translationError: errMsg,
+      });
     } finally {
-      setTranslatingLineId(null);
+      setTranslatingLineIds((prev) => {
+        const next = new Set(prev);
+        next.delete(sub.id);
+        return next;
+      });
     }
   };
 
@@ -728,7 +808,8 @@ const effectiveModel =
       <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1 select-text">
         {subtitles.map((sub, idx) => {
           const duration = (sub.end - sub.start).toFixed(1);
-          const isCurrentTranslating = translatingLineId === sub.id;
+          const isCurrentTranslating = translatingLineIds.has(sub.id);
+          const hasTranslation = Boolean(sub.farsiText && sub.farsiText.trim().length > 0);
           const enWords = sub.originalText.trim().split(/\s+/).filter(Boolean).length;
           const faWords = sub.farsiText.trim().split(/\s+/).filter(Boolean).length;
           const maxAllowedWords = Math.max(2, Math.min(enWords, Math.round(parseFloat(duration) * 2.0)));
@@ -739,7 +820,7 @@ const effectiveModel =
             <div
               key={sub.id}
               className={`p-4 rounded-2xl border transition-all ${
-                sub.farsiText.trim()
+                hasTranslation
                   ? 'bg-slate-950/70 border-slate-800 hover:border-slate-700'
                   : 'bg-slate-950/40 border-[#099767]/20'
               }`}
@@ -758,7 +839,7 @@ const effectiveModel =
                   </span>
                 </div>
 
-                {/* Voice Selector for this line */}
+                {/* Voice Selector and Individual Translation Button */}
                 <div className="flex items-center gap-2">
                   <select
                     value={sub.voice}
@@ -776,18 +857,40 @@ const effectiveModel =
                     ))}
                   </select>
 
+                  {/* Individual Translation / Re-Translation Action Button */}
                   <button
                     type="button"
                     onClick={() => handleTranslateSingleLine(sub)}
-                    disabled={isCurrentTranslating || isTranslating}
-                    title="ترجمه مجدد این خط"
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 transition disabled:opacity-50"
+                    disabled={isCurrentTranslating}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition-all duration-200 cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed group shadow-sm ${
+                      isCurrentTranslating
+                        ? 'bg-slate-800 text-slate-300 border border-slate-700/80'
+                        : hasTranslation
+                        ? 'bg-slate-800 hover:bg-slate-700/90 text-slate-200 hover:text-white border border-slate-700/80 hover:border-slate-600'
+                        : 'bg-[#099767]/15 hover:bg-[#099767]/25 text-[#34d399] hover:text-[#4ade80] border border-[#099767]/40 shadow-[#099767]/10'
+                    }`}
+                    title={
+                      isCurrentTranslating
+                        ? 'در حال ترجمه این خط با هوش مصنوعی...'
+                        : hasTranslation
+                        ? 'ترجمه مجدد این خط با هوش مصنوعی'
+                        : 'ترجمه هوشمند این خط دیالوگ'
+                    }
                   >
                     {isCurrentTranslating ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-[#34d399]" />
+                    ) : hasTranslation ? (
+                      <RefreshCw className="w-3.5 h-3.5 text-slate-400 group-hover:-rotate-90 transition-transform duration-300" />
                     ) : (
-                      <RefreshCw className="w-3.5 h-3.5" />
+                      <Languages className="w-3.5 h-3.5 text-[#34d399]" />
                     )}
+                    <span>
+                      {isCurrentTranslating
+                        ? 'در حال ترجمه...'
+                        : hasTranslation
+                        ? 'ترجمه مجدد'
+                        : 'ترجمه'}
+                    </span>
                   </button>
                 </div>
               </div>
@@ -846,23 +949,53 @@ const effectiveModel =
                           {sub.emotion}
                         </span>
                       )}
+                      {sub.isManuallyEdited && hasTranslation && (
+                        <span className="text-[10px] font-mono px-2 py-0.5 rounded border text-amber-300 bg-amber-950/60 border-amber-500/40">
+                          ویرایش دستی
+                        </span>
+                      )}
                       <span className="text-[10px] font-mono px-2 py-0.5 rounded border text-emerald-300 bg-emerald-950/60 border-emerald-500/30">
-                        {sub.farsiText.trim() ? 'ترجمه شده' : 'در انتظار ترجمه'}
+                        {hasTranslation ? 'ترجمه شده' : 'در انتظار ترجمه'}
                       </span>
                     </div>
                   </div>
                   <textarea
                     rows={2}
                     value={sub.farsiText}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      const newText = e.target.value;
                       onUpdateSubtitle(sub.id, {
-                        farsiText: e.target.value,
-                        status: 'translated',
-                      })
-                    }
+                        farsiText: newText,
+                        isManuallyEdited: true,
+                        status: newText.trim() ? 'translated' : 'idle',
+                      });
+                      if (lineErrors[sub.id]) {
+                        setLineErrors((prev) => {
+                          const copy = { ...prev };
+                          delete copy[sub.id];
+                          return copy;
+                        });
+                      }
+                    }}
                     placeholder="ترجمه فارسی روان، واضح و کامل این خط دیالوگ..."
                     className="w-full bg-slate-950 border border-slate-700 rounded-lg p-2 text-xs text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-[#099767] resize-none font-sans leading-relaxed"
                   />
+                  {lineErrors[sub.id] && (
+                    <div className="mt-2 p-2 rounded-lg bg-rose-950/50 border border-rose-500/40 text-rose-300 text-[11px] flex items-center justify-between gap-2 animate-in fade-in duration-150">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <AlertCircle className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                        <span className="truncate">{lineErrors[sub.id]}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleTranslateSingleLine(sub)}
+                        disabled={isCurrentTranslating}
+                        className="text-[10px] text-rose-200 hover:text-white underline shrink-0 cursor-pointer font-bold"
+                      >
+                        تلاش مجدد
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

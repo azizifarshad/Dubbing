@@ -156,6 +156,8 @@ export interface SubtitleItem {
   selectionReasonFa?: string;
   voiceProfileId?: string;
   retryCount?: number;
+  isManuallyEdited?: boolean;
+  translationError?: string;
   status: 'idle' | 'translating' | 'translated' | 'generating' | 'ready' | 'error';
   error?: string;
 }
