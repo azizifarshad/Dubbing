@@ -115,7 +115,7 @@ let state: AppProjectState = {
   originalAudioBlobUrl: 'blob:http://localhost:5173/mock-audio-uuid',
   originalVideoFile: { name: 'movie.mp4', size: 50000000 },
   outputBaseName: 'movie_dubbed',
-  mixMode: 'isolated',
+  mixMode: 'ducking',
   persianVolume: 0.8,
   backgroundVolume: 0.1,
   duckingAmount: 0.6,
@@ -152,7 +152,7 @@ function executeProjectReset() {
 
   // 3. Reset mixing & export states
   state.outputBaseName = '';
-  state.mixMode = 'ducking';
+  state.mixMode = 'isolated';
   state.persianVolume = 1.0;
   state.backgroundVolume = 0.2;
   state.duckingAmount = 0.8;
@@ -181,7 +181,7 @@ assert.strictEqual(state.originalAudioDuration, 0, 'Original audio duration must
 assert.strictEqual(state.originalAudioBlobUrl, null, 'Original audio blob URL must be null');
 assert.strictEqual(state.originalVideoFile, null, 'Original video file must be null');
 assert.strictEqual(state.outputBaseName, '', 'Output base name must be reset');
-assert.strictEqual(state.mixMode, 'ducking', 'Mix mode must reset to default ducking');
+assert.strictEqual(state.mixMode, 'isolated', 'Mix mode must reset to default isolated pure dubbing');
 assert.strictEqual(state.persianVolume, 1.0, 'Persian volume must reset to default 1.0');
 assert.strictEqual(state.backgroundVolume, 0.2, 'Background volume must reset to default 0.2');
 assert.strictEqual(state.duckingAmount, 0.8, 'Ducking amount must reset to default 0.8');

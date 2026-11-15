@@ -1606,47 +1606,38 @@ export const TimelinePlayer: React.FC<TimelinePlayerProps> = ({
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 p-2 rounded-2xl bg-slate-950/70 border border-slate-800/80">
         <div className="flex items-center gap-2 text-xs font-bold text-slate-400 px-2">
           <Sliders className="w-4 h-4 text-[#34d399]" />
-          <span>حالت میکس صدای فیلم و دوبله:</span>
+          <span>میکس صدای فیلم و دوبله:</span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <button
-            type="button"
-            onClick={() => onChangeMixMode('ducking')}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 ${
-              mixMode === 'ducking'
-                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
-                : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Radio className="w-3.5 h-3.5" />
-            <span>داکینگ هوشمند (کاهش صدای فیلم حین دیالوگ)</span>
-          </button>
-
+          {/* 1. First Option: Persian Dubbing Only (Isolated) - Default */}
           <button
             type="button"
             onClick={() => onChangeMixMode('isolated')}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 cursor-pointer ${
               mixMode === 'isolated'
-                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
+                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20 ring-1 ring-[#099767]/50'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
             }`}
+            title="فقط صدای دوبله فارسی (خالص بدون فیلم)"
           >
             <Mic2 className="w-3.5 h-3.5" />
             <span>فقط دوبله فارسی (خالص بدون فیلم)</span>
           </button>
 
+          {/* 2. Second Option: Movie Audio + Persian Dubbing Mix (Ducking) */}
           <button
             type="button"
-            onClick={() => onChangeMixMode('full_mix')}
-            className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 ${
-              mixMode === 'full_mix'
-                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20'
+            onClick={() => onChangeMixMode('ducking')}
+            className={`px-3 py-1.5 rounded-xl font-semibold transition flex items-center gap-1.5 cursor-pointer ${
+              mixMode === 'ducking'
+                ? 'bg-[#099767] text-white shadow-md shadow-[#099767]/20 ring-1 ring-[#099767]/50'
                 : 'bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200'
             }`}
+            title="میکس صدای فیلم و دوبله با داکینگ هوشمند"
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>میکس همسطح (بدون داکینگ)</span>
+            <Radio className="w-3.5 h-3.5" />
+            <span>میکس صدای فیلم و دوبله</span>
           </button>
         </div>
       </div>

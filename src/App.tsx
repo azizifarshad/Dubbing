@@ -123,7 +123,7 @@ export default function App() {
 
   // Export state
   const [outputBaseName, setOutputBaseName] = useState<string>('');
-  const [mixMode, setMixMode] = useState<'ducking' | 'isolated' | 'full_mix'>('ducking');
+  const [mixMode, setMixMode] = useState<'ducking' | 'isolated' | 'full_mix'>('isolated');
   const [persianVolume, setPersianVolume] = useState<number>(1.0);
   const [backgroundVolume, setBackgroundVolume] = useState<number>(0.2);
   const [duckingAmount, setDuckingAmount] = useState<number>(0.8);
@@ -247,7 +247,7 @@ export default function App() {
 
     // 3. Reset mixing & export states
     setOutputBaseName('');
-    setMixMode('ducking');
+    setMixMode('isolated');
     setPersianVolume(1.0);
     setBackgroundVolume(0.2);
     setDuckingAmount(0.8);
