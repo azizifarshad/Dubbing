@@ -11,8 +11,8 @@ using System.Reflection;
 [assembly: AssemblyCompany("Vidans Studio")]
 [assembly: AssemblyProduct("Dubbing Vidans")]
 [assembly: AssemblyCopyright("Copyright © Vidans Studio 2026")]
-[assembly: AssemblyVersion("1.0.1.0")]
-[assembly: AssemblyFileVersion("1.0.1.0")]
+[assembly: AssemblyVersion("1.0.2.0")]
+[assembly: AssemblyFileVersion("1.0.2.0")]
 
 namespace DubbingVidans
 {

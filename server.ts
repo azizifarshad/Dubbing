@@ -2986,7 +2986,7 @@ STRICT CONSTRAINTS & RULES:
 // ==============================================================================
 // SECURE AUTOMATIC UPDATE SUBSYSTEM (PHASE 5 & 6)
 // ==============================================================================
-const CURRENT_APP_VERSION = '1.0.1';
+const CURRENT_APP_VERSION = '1.0.2';
 const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || 'azizifarshad';
 const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'Dubbing';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;

@@ -43,7 +43,7 @@ export interface UpdateProgress {
   technicalDetails?: string;
 }
 
-export const CURRENT_APP_VERSION = '1.0.1';
+export const CURRENT_APP_VERSION = '1.0.2';
 
 export async function fetchUpdateStatus(): Promise<{
   currentVersion: string;
