@@ -3101,6 +3101,7 @@ interface AppUpdateState {
     downloadedBytes: number;
     totalBytes: number;
     errorMessage?: string;
+    errorMessageFa?: string;
     technicalDetails?: string;
   };
   downloadedFilePath: string | null;
@@ -3622,9 +3623,20 @@ async function startServer() {
   const hasDist = fs.existsSync(path.resolve(distPath, 'index.html'));
   const isProd = process.env.NODE_ENV === 'production' || hasDist;
 
+  const staticServeOptions = {
+    maxAge: '1y',
+    immutable: true,
+    setHeaders: (res: Response, filePath: string) => {
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      }
+    },
+  };
+
   if (isProd) {
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, staticServeOptions));
     app.get('*', (_req, res) => {
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
@@ -3637,8 +3649,9 @@ async function startServer() {
       app.use(vite.middlewares);
     } catch {
       if (hasDist) {
-        app.use(express.static(distPath));
+        app.use(express.static(distPath, staticServeOptions));
         app.get('*', (_req, res) => {
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
           res.sendFile(path.resolve(distPath, 'index.html'));
         });
       }
