@@ -173,10 +173,10 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
     }
   };
 
-  const handleToggleAutoUpdate = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.checked;
-    setAutoUpdateEnabled(val);
-    setAutoUpdatePreference(val, channel);
+  const handleToggleAutoUpdate = () => {
+    const nextVal = !autoUpdateEnabled;
+    setAutoUpdateEnabled(nextVal);
+    setAutoUpdatePreference(nextVal, channel);
   };
 
   const handleChangeChannel = (newChannel: 'stable' | 'beta') => {
@@ -420,22 +420,37 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
           )}
 
           {/* Preferences */}
-          <div className="bg-[#121822] border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
-            <div className="space-y-0.5">
+          <div
+            onClick={handleToggleAutoUpdate}
+            className="bg-[#121822] hover:bg-[#161f2c] border border-slate-800 hover:border-slate-700/80 rounded-xl p-3.5 flex items-center justify-between cursor-pointer transition-colors select-none"
+          >
+            <div className="space-y-0.5 pr-1">
               <span className="text-xs font-semibold text-slate-200 block">بررسی خودکار در شروع برنامه</span>
               <span className="text-[11px] text-slate-400 block">
                 در هنگام اجرای برنامه، وجود نسخه‌های جدیدتر در پس‌زمینه بررسی شود.
               </span>
             </div>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={autoUpdateEnabled}
-                onChange={handleToggleAutoUpdate}
-                className="sr-only peer"
+            <button
+              type="button"
+              role="switch"
+              aria-checked={autoUpdateEnabled}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleAutoUpdate();
+              }}
+              dir="ltr"
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-emerald-500/50 focus:ring-offset-2 focus:ring-offset-[#121822] ${
+                autoUpdateEnabled ? 'bg-emerald-500' : 'bg-slate-700'
+              }`}
+            >
+              <span className="sr-only">بررسی خودکار در شروع برنامه</span>
+              <span
+                aria-hidden="true"
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-200 ease-in-out ${
+                  autoUpdateEnabled ? 'translate-x-5' : 'translate-x-0'
+                }`}
               />
-              <div className="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
-            </label>
+            </button>
           </div>
         </div>
 
@@ -459,7 +474,7 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                <span>نصب و راه‌اندازی مجدد نرم‌افزار</span>
+                <span>نصب و راه‌اندازی مجدد نرم‌افزار (Install & Restart)</span>
               </button>
             )}
 
@@ -472,16 +487,30 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
                   className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20 transition-all cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
-                  <span>دریافت و نصب خودکار آپدیت</span>
+                  <span>به‌روزرسانی اکنون (Update Now)</span>
                 </button>
               )}
 
+            {progress.status === 'downloading' && (
+              <div className="flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                <span>در حال دریافت... ({progress.progressPercent}%)</span>
+              </div>
+            )}
+
             <button
               type="button"
-              onClick={onClose}
+              onClick={() => {
+                if (updateInfo?.updateAvailable && updateInfo.latestVersion) {
+                  try {
+                    sessionStorage.setItem(`vidans_dismissed_update_${updateInfo.latestVersion}`, 'true');
+                  } catch {}
+                }
+                onClose();
+              }}
               className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
             >
-              بستن
+              {updateInfo?.updateAvailable && progress.status !== 'ready_to_install' ? 'بعداً (Later)' : 'بستن'}
             </button>
           </div>
         </div>

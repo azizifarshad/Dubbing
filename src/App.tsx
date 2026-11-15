@@ -4,7 +4,7 @@ import { Header } from './components/Header';
 import { ApiKeyModal } from './components/ApiKeyModal';
 import { LicenseModal } from './components/LicenseModal';
 import { UpdateModal } from './components/UpdateModal';
-import { fetchUpdateStatus } from './utils/updateManager';
+import { fetchUpdateStatus, checkForUpdates } from './utils/updateManager';
 import { FileUploaderSection } from './components/FileUploaderSection';
 import { TranslationStudio } from './components/TranslationStudio';
 import { VoiceSynthesisStudio } from './components/VoiceSynthesisStudio';
@@ -76,10 +76,33 @@ export default function App() {
 
   useEffect(() => {
     checkLicense();
+    // Auto-check for updates on application startup
     fetchUpdateStatus()
-      .then((data) => {
-        if (data?.updateInfo?.updateAvailable) {
+      .then(async (status) => {
+        // If an update was already detected in background cache
+        if (status?.updateInfo?.updateAvailable && status.updateInfo.latestVersion) {
           setHasUpdateAvailable(true);
+          const dismissedKey = `vidans_dismissed_update_${status.updateInfo.latestVersion}`;
+          if (!sessionStorage.getItem(dismissedKey)) {
+            setIsUpdateModalOpen(true);
+          }
+          return;
+        }
+
+        // If auto-update is enabled, check GitHub Releases
+        if (status?.autoUpdateEnabled) {
+          try {
+            const checkRes = await checkForUpdates(status.channel || 'stable');
+            if (checkRes?.updateAvailable && checkRes.latestVersion) {
+              setHasUpdateAvailable(true);
+              const dismissedKey = `vidans_dismissed_update_${checkRes.latestVersion}`;
+              if (!sessionStorage.getItem(dismissedKey)) {
+                setIsUpdateModalOpen(true);
+              }
+            }
+          } catch {
+            // Silently ignore startup network/offline errors to keep application launch smooth
+          }
         }
       })
       .catch(() => {});

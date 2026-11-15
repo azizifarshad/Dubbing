@@ -72682,7 +72682,12 @@ STRICT CONSTRAINTS & RULES:
   }
 });
 var CURRENT_APP_VERSION = "1.0.1";
-var UPDATE_SERVER_URL = process.env.UPDATE_SERVER_URL || "http://localhost:4000";
+var GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || "azizifarshad";
+var GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || "Dubbing";
+var GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;
+var UPDATE_SERVER_URL = (process.env.UPDATE_SERVER_URL || "").replace(/localhost:4000\/?$/i, "").trim();
+var updateCheckCache = null;
+var CACHE_TTL_MS = 3 * 60 * 1e3;
 function classifyUpdateError(err, endpointUrl) {
   const causeCode = err?.cause?.code || err?.code || "";
   const rawMsg = err?.message || String(err);
@@ -72832,39 +72837,39 @@ function compareSemver(v1, v2) {
 }
 app.post("/api/app-update/check", async (req, res) => {
   const reqChannel = req.body?.channel || appUpdateState.channel;
+  const force = Boolean(req.body?.force);
   appUpdateState.channel = reqChannel;
+  const now = Date.now();
+  if (!force && updateCheckCache && updateCheckCache.channel === reqChannel && now - updateCheckCache.timestamp < CACHE_TTL_MS) {
+    console.log("[App Update] Returning cached update check result.");
+    return res.json(updateCheckCache.data);
+  }
   appUpdateState.progress = {
     status: "checking",
     progressPercent: 0,
     downloadedBytes: 0,
     totalBytes: 0
   };
-  let hwFingerprint = "";
-  try {
-    const hw = await getHardwareInfo();
-    hwFingerprint = hw.hardwareFingerprint;
-  } catch {
-  }
-  const checkUrl = `${UPDATE_SERVER_URL}/api/updates/check?version=${appUpdateState.currentVersion}&channel=${reqChannel}&os=win&arch=x64`;
-  console.log(`[App Update] Querying update server at: ${checkUrl}`);
-  let serverRes = null;
-  let serverFetchErr = null;
-  try {
-    serverRes = await fetch(checkUrl, {
-      headers: {
-        "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`,
-        "X-Hardware-Fingerprint": hwFingerprint
-      },
-      signal: AbortSignal.timeout(15e3)
-    });
-  } catch (fErr) {
-    serverFetchErr = fErr;
-  }
-  if (serverRes && serverRes.ok) {
+  if (UPDATE_SERVER_URL) {
+    let hwFingerprint = "";
     try {
-      const data = await serverRes.json();
-      if (data.updateAvailable) {
-        if (data.signature) {
+      const hw = await getHardwareInfo();
+      hwFingerprint = hw.hardwareFingerprint;
+    } catch {
+    }
+    const checkUrl = `${UPDATE_SERVER_URL}/api/updates/check?version=${appUpdateState.currentVersion}&channel=${reqChannel}&os=win&arch=x64`;
+    console.log(`[App Update] Querying custom update gateway at: ${checkUrl}`);
+    try {
+      const serverRes = await fetch(checkUrl, {
+        headers: {
+          "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`,
+          "X-Hardware-Fingerprint": hwFingerprint
+        },
+        signal: AbortSignal.timeout(1e4)
+      });
+      if (serverRes.ok) {
+        const data = await serverRes.json();
+        if (data.updateAvailable && data.signature) {
           const isSigValid = verifyUpdateManifestSignature({
             appName: "Dubbing Vidans",
             version: data.latestVersion,
@@ -72877,183 +72882,254 @@ app.post("/api/app-update/check", async (req, res) => {
             signature: data.signature
           });
           if (!isSigValid) {
-            console.warn("[App Update] Manifest signature verification failed! Update rejected.");
-            appUpdateState.progress = {
-              status: "error",
-              progressPercent: 0,
-              downloadedBytes: 0,
-              totalBytes: 0,
-              errorMessage: "\u0627\u0645\u0636\u0627\u06CC \u062F\u06CC\u062C\u06CC\u062A\u0627\u0644 \u0628\u0633\u062A\u0647 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A. \u062C\u0647\u062A \u062D\u0641\u0638 \u0627\u0645\u0646\u06CC\u062A \u0627\u0632 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0646 \u062E\u0648\u062F\u062F\u0627\u0631\u06CC \u0634\u062F."
-            };
-            return res.status(400).json({ error: "Update rejected: Invalid cryptographic signature." });
+            console.warn("[App Update] Custom gateway manifest signature verification failed!");
+          } else {
+            appUpdateState.updateInfo = data;
+            appUpdateState.progress.status = "available";
+            updateCheckCache = { timestamp: now, channel: reqChannel, data };
+            return res.json(data);
           }
-        }
-        appUpdateState.updateInfo = data;
-        appUpdateState.progress = {
-          status: "available",
-          progressPercent: 0,
-          downloadedBytes: 0,
-          totalBytes: data.sizeBytes || 0
-        };
-      } else {
-        appUpdateState.updateInfo = data;
-        appUpdateState.progress = {
-          status: "up_to_date",
-          progressPercent: 0,
-          downloadedBytes: 0,
-          totalBytes: 0
-        };
-      }
-      return res.json(data);
-    } catch (parseErr) {
-      serverFetchErr = parseErr;
-    }
-  }
-  if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
-    try {
-      console.log("[App Update] Attempting direct fallback query to GitHub Releases via GITHUB_TOKEN...");
-      const ghRes = await fetch("https://api.github.com/repos/azizifarshad/Dubbing/releases?per_page=10", {
-        headers: {
-          Authorization: `token ${process.env.GITHUB_TOKEN.trim()}`,
-          Accept: "application/vnd.github.v3+json",
-          "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
-        },
-        signal: AbortSignal.timeout(15e3)
-      });
-      if (ghRes.ok) {
-        const releases = await ghRes.json();
-        if (Array.isArray(releases) && releases.length > 0) {
-          let candidate = releases.find((r2) => {
-            if (reqChannel === "beta") return true;
-            return !r2.prerelease && !r2.draft;
-          });
-          if (!candidate && releases.length > 0) candidate = releases[0];
-          const rawTag = candidate.tag_name || candidate.name || "0.0.0";
-          const latestVersion = rawTag.replace(/^v/, "");
-          const hasNewer = compareSemver(latestVersion, appUpdateState.currentVersion) > 0;
-          let manifestData = null;
-          const manifestAsset = candidate.assets?.find((a) => a.name === "update-manifest.json");
-          const installerAsset = candidate.assets?.find(
-            (a) => a.name.endsWith(".exe") && !a.name.includes("Generator")
-          ) || candidate.assets?.[0];
-          if (manifestAsset) {
-            try {
-              const mfRes = await fetch(manifestAsset.url, {
-                headers: {
-                  Authorization: `token ${process.env.GITHUB_TOKEN.trim()}`,
-                  Accept: "application/octet-stream",
-                  "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
-                },
-                signal: AbortSignal.timeout(1e4)
-              });
-              if (mfRes.ok) {
-                manifestData = await mfRes.json();
-              }
-            } catch (mfErr) {
-              console.warn("[App Update] Could not parse manifest asset from GitHub:", mfErr.message);
-            }
-          }
-          const hostPort = process.env.PORT || "3000";
-          const downloadUrl = installerAsset ? `http://127.0.0.1:${hostPort}/api/app-update/download-asset/${installerAsset.id}?name=${encodeURIComponent(installerAsset.name)}` : "";
-          const directData = {
-            updateAvailable: hasNewer,
-            currentVersion: appUpdateState.currentVersion,
-            latestVersion,
-            channel: reqChannel,
-            releaseName: candidate.name || `Dubbing Vidans v${latestVersion}`,
-            releaseNotes: manifestData?.releaseNotes || candidate.body || "\u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC\u200C\u0647\u0627\u06CC \u0639\u0645\u0644\u06A9\u0631\u062F\u06CC \u0648 \u0627\u0645\u0646\u06CC\u062A\u06CC.",
-            releaseNotesFa: manifestData?.releaseNotesFa || "\u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC\u200C\u0647\u0627\u06CC \u0633\u0631\u0639\u062A\u060C \u067E\u0627\u06CC\u062F\u0627\u0631\u06CC \u0648 \u0628\u0647\u0628\u0648\u062F \u0627\u0644\u06AF\u0648\u0631\u06CC\u062A\u0645\u200C\u0647\u0627\u06CC \u0633\u06CC\u0646\u06A9 \u0635\u0648\u062A\u06CC.",
-            downloadUrl,
-            sizeBytes: installerAsset?.size || manifestData?.fileSizeBytes || 0,
-            sha256: manifestData?.sha256 || "",
-            signature: manifestData?.signature || "",
-            minSupportedVersion: manifestData?.minSupportedVersion || "1.0.0",
-            status: hasNewer ? "available" : "up_to_date"
-          };
-          if (hasNewer && directData.signature) {
-            const isSigValid = verifyUpdateManifestSignature({
-              appName: "Dubbing Vidans",
-              version: latestVersion,
-              channel: reqChannel,
-              os: "windows",
-              arch: "x64",
-              sha256: directData.sha256,
-              fileSizeBytes: directData.sizeBytes,
-              minSupportedVersion: directData.minSupportedVersion,
-              signature: directData.signature
-            });
-            if (!isSigValid) {
-              console.warn("[App Update Direct GitHub] Signature verification failed! Rejecting update.");
-              return res.status(400).json({ error: "Update rejected: Invalid cryptographic signature." });
-            }
-          }
-          appUpdateState.updateInfo = directData;
-          appUpdateState.progress = {
-            status: hasNewer ? "available" : "up_to_date",
-            progressPercent: 0,
-            downloadedBytes: 0,
-            totalBytes: directData.sizeBytes || 0
-          };
-          return res.json(directData);
-        } else {
-          const noReleaseData = {
-            updateAvailable: false,
-            currentVersion: appUpdateState.currentVersion,
-            latestVersion: appUpdateState.currentVersion,
-            channel: reqChannel,
-            status: "up_to_date",
-            messageFa: "\u0634\u0645\u0627 \u062F\u0631 \u062D\u0627\u0644 \u062D\u0627\u0636\u0631 \u0627\u0632 \u0622\u062E\u0631\u06CC\u0646 \u0646\u0633\u062E\u0647 \u067E\u0627\u06CC\u062F\u0627\u0631 \u0646\u0631\u0645\u200C\u0627\u0641\u0632\u0627\u0631 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0645\u06CC\u200C\u06A9\u0646\u06CC\u062F."
-          };
-          appUpdateState.updateInfo = noReleaseData;
-          appUpdateState.progress = {
-            status: "up_to_date",
-            progressPercent: 0,
-            downloadedBytes: 0,
-            totalBytes: 0
-          };
-          return res.json(noReleaseData);
+        } else if (!data.updateAvailable) {
+          appUpdateState.updateInfo = data;
+          appUpdateState.progress.status = "up_to_date";
+          updateCheckCache = { timestamp: now, channel: reqChannel, data };
+          return res.json(data);
         }
       }
-    } catch (ghErr) {
-      console.warn("[App Update] Direct GitHub fallback failed:", ghErr.message);
+    } catch (gErr) {
+      console.warn(`[App Update] Custom gateway query failed (${gErr.message}). Falling back to GitHub Releases...`);
     }
   }
-  const finalError = serverFetchErr || new Error(`Server returned HTTP ${serverRes?.status || "UNKNOWN"}`);
-  const classified = classifyUpdateError(finalError, checkUrl);
-  console.warn(`[App Update Check]: ${classified.technicalDetails}`);
-  appUpdateState.progress = {
-    status: "error",
-    progressPercent: 0,
-    downloadedBytes: 0,
-    totalBytes: 0,
-    errorMessage: classified.messageFa,
-    technicalDetails: classified.technicalDetails
+  console.log(`[App Update] Checking GitHub Releases for ${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}...`);
+  const ghHeaders = {
+    Accept: "application/vnd.github.v3+json",
+    "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
   };
-  return res.json({
-    updateAvailable: false,
-    currentVersion: appUpdateState.currentVersion,
-    status: classified.status,
-    errorMessageFa: classified.messageFa,
-    technicalDetails: classified.technicalDetails,
-    endpoint: classified.endpoint,
-    isRetryable: classified.isRetryable
-  });
+  const token = process.env.GITHUB_TOKEN?.trim();
+  if (token) {
+    ghHeaders["Authorization"] = `token ${token}`;
+  }
+  try {
+    const ghRes = await fetch(`${GITHUB_RELEASES_API}?per_page=15`, {
+      headers: ghHeaders,
+      signal: AbortSignal.timeout(12e3)
+    });
+    if (ghRes.status === 404) {
+      console.log("[App Update] No published GitHub releases found for repository (HTTP 404). Current version is up to date.");
+      const noReleaseData = {
+        updateAvailable: false,
+        currentVersion: appUpdateState.currentVersion,
+        latestVersion: appUpdateState.currentVersion,
+        channel: reqChannel,
+        status: "up_to_date",
+        messageFa: "\u0634\u0645\u0627 \u062F\u0631 \u062D\u0627\u0644 \u062D\u0627\u0636\u0631 \u0627\u0632 \u0622\u062E\u0631\u06CC\u0646 \u0646\u0633\u062E\u0647 \u067E\u0627\u06CC\u062F\u0627\u0631 \u0646\u0631\u0645\u200C\u0627\u0641\u0632\u0627\u0631 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0645\u06CC\u200C\u06A9\u0646\u06CC\u062F."
+      };
+      appUpdateState.updateInfo = noReleaseData;
+      appUpdateState.progress = {
+        status: "up_to_date",
+        progressPercent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0
+      };
+      updateCheckCache = { timestamp: now, channel: reqChannel, data: noReleaseData };
+      return res.json(noReleaseData);
+    }
+    if (ghRes.status === 403) {
+      console.warn("[App Update] GitHub API rate limit reached (HTTP 403).");
+      const rateLimitData = {
+        updateAvailable: false,
+        currentVersion: appUpdateState.currentVersion,
+        status: "unreachable",
+        errorMessageFa: "\u0645\u062D\u062F\u0648\u062F\u06CC\u062A \u0645\u0648\u0642\u062A \u062F\u0631\u06AF\u0627\u0647 \u0627\u0633\u062A\u0639\u0644\u0627\u0645 \u06AF\u06CC\u062A\u200C\u0647\u0627\u0628 \u0631\u062E \u062F\u0627\u062F\u0647 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u062F\u0642\u0627\u06CC\u0642\u06CC \u062F\u06CC\u06AF\u0631 \u0645\u062C\u062F\u062F\u0627\u064B \u062A\u0644\u0627\u0634 \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F.",
+        technicalDetails: "GitHub API rate limit exceeded (HTTP 403)",
+        isRetryable: true
+      };
+      appUpdateState.progress = {
+        status: "error",
+        progressPercent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0,
+        errorMessage: rateLimitData.errorMessageFa,
+        errorMessageFa: rateLimitData.errorMessageFa,
+        technicalDetails: rateLimitData.technicalDetails
+      };
+      return res.json(rateLimitData);
+    }
+    if (!ghRes.ok) {
+      throw new Error(`GitHub API returned HTTP ${ghRes.status}: ${ghRes.statusText}`);
+    }
+    const releases = await ghRes.json();
+    if (!Array.isArray(releases) || releases.length === 0) {
+      console.log("[App Update] GitHub releases list is empty. Current version is up to date.");
+      const emptyData = {
+        updateAvailable: false,
+        currentVersion: appUpdateState.currentVersion,
+        latestVersion: appUpdateState.currentVersion,
+        channel: reqChannel,
+        status: "up_to_date",
+        messageFa: "\u0634\u0645\u0627 \u062F\u0631 \u062D\u0627\u0644 \u062D\u0627\u0636\u0631 \u0627\u0632 \u0622\u062E\u0631\u06CC\u0646 \u0646\u0633\u062E\u0647 \u067E\u0627\u06CC\u062F\u0627\u0631 \u0646\u0631\u0645\u200C\u0627\u0641\u0632\u0627\u0631 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0645\u06CC\u200C\u06A9\u0646\u06CC\u062F."
+      };
+      appUpdateState.updateInfo = emptyData;
+      appUpdateState.progress = {
+        status: "up_to_date",
+        progressPercent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0
+      };
+      updateCheckCache = { timestamp: now, channel: reqChannel, data: emptyData };
+      return res.json(emptyData);
+    }
+    const eligibleReleases = releases.filter((r2) => {
+      if (r2.draft) return false;
+      if (reqChannel === "stable" && r2.prerelease) return false;
+      return true;
+    });
+    if (eligibleReleases.length === 0) {
+      console.log(`[App Update] No eligible ${reqChannel} releases found on GitHub.`);
+      const noEligibleData = {
+        updateAvailable: false,
+        currentVersion: appUpdateState.currentVersion,
+        latestVersion: appUpdateState.currentVersion,
+        channel: reqChannel,
+        status: "up_to_date",
+        messageFa: "\u0634\u0645\u0627 \u062F\u0631 \u062D\u0627\u0644 \u062D\u0627\u0636\u0631 \u0627\u0632 \u0622\u062E\u0631\u06CC\u0646 \u0646\u0633\u062E\u0647 \u067E\u0627\u06CC\u062F\u0627\u0631 \u0646\u0631\u0645\u200C\u0627\u0641\u0632\u0627\u0631 \u0627\u0633\u062A\u0641\u0627\u062F\u0647 \u0645\u06CC\u200C\u06A9\u0646\u06CC\u062F."
+      };
+      appUpdateState.updateInfo = noEligibleData;
+      appUpdateState.progress = {
+        status: "up_to_date",
+        progressPercent: 0,
+        downloadedBytes: 0,
+        totalBytes: 0
+      };
+      updateCheckCache = { timestamp: now, channel: reqChannel, data: noEligibleData };
+      return res.json(noEligibleData);
+    }
+    eligibleReleases.sort((a, b) => {
+      const vA = (a.tag_name || a.name || "").replace(/^v/, "");
+      const vB = (b.tag_name || b.name || "").replace(/^v/, "");
+      return compareSemver(vB, vA);
+    });
+    const targetRelease = eligibleReleases[0];
+    const latestVersion = (targetRelease.tag_name || targetRelease.name || "0.0.0").replace(/^v/, "").trim();
+    const hasNewer = compareSemver(latestVersion, appUpdateState.currentVersion) > 0;
+    const assets = targetRelease.assets || [];
+    const manifestAsset = assets.find((a) => a.name === "update-manifest.json");
+    const installerAsset = assets.find(
+      (a) => a.name.toLowerCase().endsWith(".exe") && !a.name.toLowerCase().includes("generator")
+    ) || assets.find((a) => a.name.toLowerCase().endsWith(".exe"));
+    let manifestData = null;
+    if (manifestAsset) {
+      try {
+        const mfHeaders = {
+          Accept: "application/octet-stream",
+          "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
+        };
+        if (token) {
+          mfHeaders["Authorization"] = `token ${token}`;
+        }
+        const mfRes = await fetch(manifestAsset.browser_download_url || manifestAsset.url, {
+          headers: mfHeaders,
+          signal: AbortSignal.timeout(8e3)
+        });
+        if (mfRes.ok) {
+          manifestData = await mfRes.json();
+        }
+      } catch (mfErr) {
+        console.warn("[App Update] Could not parse manifest asset from GitHub release:", mfErr.message);
+      }
+    }
+    let downloadUrl = installerAsset?.browser_download_url || "";
+    if (!downloadUrl && installerAsset?.id && token) {
+      downloadUrl = `/api/app-update/download-asset/${installerAsset.id}?name=${encodeURIComponent(installerAsset.name)}`;
+    }
+    const releaseData = {
+      updateAvailable: hasNewer,
+      currentVersion: appUpdateState.currentVersion,
+      latestVersion,
+      channel: reqChannel,
+      releaseDate: targetRelease.published_at || targetRelease.created_at,
+      releaseName: targetRelease.name || `Dubbing Vidans v${latestVersion}`,
+      releaseNotes: manifestData?.releaseNotes || targetRelease.body || "\u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC\u200C\u0647\u0627\u06CC \u0639\u0645\u0644\u06A9\u0631\u062F\u06CC \u0648 \u0627\u0645\u0646\u06CC\u062A\u06CC.",
+      releaseNotesFa: manifestData?.releaseNotesFa || targetRelease.body || "\u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u062C\u062F\u06CC\u062F \u0627\u0633\u062A\u0648\u062F\u06CC\u0648 \u062F\u0648\u0628\u0644\u0647 \u0648\u06CC\u062F\u0627\u0646\u0633.",
+      downloadUrl,
+      sizeBytes: installerAsset?.size || manifestData?.fileSizeBytes || 0,
+      sha256: manifestData?.sha256 || "",
+      signature: manifestData?.signature || "",
+      minSupportedVersion: manifestData?.minSupportedVersion || "1.0.0",
+      status: hasNewer ? "available" : "up_to_date"
+    };
+    if (hasNewer && releaseData.signature) {
+      const isSigValid = verifyUpdateManifestSignature({
+        appName: "Dubbing Vidans",
+        version: latestVersion,
+        channel: reqChannel,
+        os: "windows",
+        arch: "x64",
+        sha256: releaseData.sha256,
+        fileSizeBytes: releaseData.sizeBytes,
+        minSupportedVersion: releaseData.minSupportedVersion,
+        signature: releaseData.signature
+      });
+      if (!isSigValid) {
+        console.warn("[App Update Direct GitHub] Signature verification failed! Rejecting update.");
+        appUpdateState.progress = {
+          status: "error",
+          progressPercent: 0,
+          downloadedBytes: 0,
+          totalBytes: 0,
+          errorMessage: "\u0627\u0645\u0636\u0627\u06CC \u062F\u06CC\u062C\u06CC\u062A\u0627\u0644 \u0628\u0633\u062A\u0647 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A. \u062C\u0647\u062A \u062D\u0641\u0638 \u0627\u0645\u0646\u06CC\u062A \u0627\u0632 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0646 \u062E\u0648\u062F\u062F\u0627\u0631\u06CC \u0634\u062F.",
+          errorMessageFa: "\u0627\u0645\u0636\u0627\u06CC \u062F\u06CC\u062C\u06CC\u062A\u0627\u0644 \u0628\u0633\u062A\u0647 \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC \u0646\u0627\u0645\u0639\u062A\u0628\u0631 \u0627\u0633\u062A. \u062C\u0647\u062A \u062D\u0641\u0638 \u0627\u0645\u0646\u06CC\u062A \u0627\u0632 \u062F\u0631\u06CC\u0627\u0641\u062A \u0622\u0646 \u062E\u0648\u062F\u062F\u0627\u0631\u06CC \u0634\u062F."
+        };
+        return res.status(400).json({ error: "Update rejected: Invalid cryptographic signature." });
+      }
+    }
+    appUpdateState.updateInfo = releaseData;
+    appUpdateState.progress = {
+      status: hasNewer ? "available" : "up_to_date",
+      progressPercent: 0,
+      downloadedBytes: 0,
+      totalBytes: releaseData.sizeBytes || 0
+    };
+    updateCheckCache = { timestamp: now, channel: reqChannel, data: releaseData };
+    return res.json(releaseData);
+  } catch (err) {
+    const classified = classifyUpdateError(err, GITHUB_RELEASES_API);
+    console.warn(`[App Update GitHub Check]: ${classified.technicalDetails}`);
+    appUpdateState.progress = {
+      status: "error",
+      progressPercent: 0,
+      downloadedBytes: 0,
+      totalBytes: 0,
+      errorMessage: classified.messageFa,
+      errorMessageFa: classified.messageFa,
+      technicalDetails: classified.technicalDetails
+    };
+    return res.json({
+      updateAvailable: false,
+      currentVersion: appUpdateState.currentVersion,
+      status: classified.status,
+      errorMessageFa: classified.messageFa,
+      technicalDetails: classified.technicalDetails,
+      endpoint: classified.endpoint,
+      isRetryable: classified.isRetryable
+    });
+  }
 });
 app.get("/api/app-update/download-asset/:assetId", async (req, res) => {
   const assetId = req.params.assetId;
   const fileName = req.query.name || "Dubbing-Vidans-Setup.exe";
   const token = process.env.GITHUB_TOKEN?.trim();
-  if (!token) {
-    return res.status(401).json({ error: "GitHub token required to download asset from private repository." });
-  }
   try {
-    const assetUrl = `https://api.github.com/repos/azizifarshad/Dubbing/releases/assets/${assetId}`;
+    const assetUrl = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases/assets/${assetId}`;
+    const assetHeaders = {
+      Accept: "application/octet-stream",
+      "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
+    };
+    if (token) {
+      assetHeaders["Authorization"] = `token ${token}`;
+    }
     const assetRes = await fetch(assetUrl, {
-      headers: {
-        Authorization: `token ${token}`,
-        Accept: "application/octet-stream",
-        "User-Agent": `DubbingVidans-Client/${appUpdateState.currentVersion}`
-      }
+      headers: assetHeaders
     });
     if (!assetRes.ok) {
       return res.status(assetRes.status).send(`Failed to stream asset (${assetRes.status})`);
