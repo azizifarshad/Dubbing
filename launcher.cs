@@ -105,7 +105,19 @@ namespace DubbingVidans
 
                 if (appWindowProcess != null)
                 {
+                    DateTime launchTime = DateTime.Now;
                     appWindowProcess.WaitForExit();
+
+                    // If the spawned browser process exited in less than 3 seconds,
+                    // Chromium delegated to an already-running browser instance in the background.
+                    // DO NOT kill the server process; wait for server process instead!
+                    if ((DateTime.Now - launchTime).TotalSeconds < 3.0)
+                    {
+                        if (serverProcess != null && !serverProcess.HasExited)
+                        {
+                            serverProcess.WaitForExit();
+                        }
+                    }
                 }
             }
             else

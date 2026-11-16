@@ -73185,7 +73185,10 @@ app.post("/api/app-update/download", async (_req, res) => {
   try {
     const updateInfo = appUpdateState.updateInfo;
     if (!updateInfo || !updateInfo.downloadUrl) {
-      return res.status(400).json({ error: "No update available to download." });
+      return res.status(400).json({
+        error: "No update binary available for download in this release.",
+        errorMessageFa: "\u0641\u0627\u06CC\u0644 \u0646\u0635\u0628\u06CC (.exe) \u062F\u0631 \u0628\u062E\u0634 Releases \u0627\u06CC\u0646 \u0646\u0633\u062E\u0647 \u062F\u0631 \u06AF\u06CC\u062A\u200C\u0647\u0627\u0628 \u0622\u067E\u0644\u0648\u062F \u0646\u0634\u062F\u0647 \u0627\u0633\u062A. \u0644\u0637\u0641\u0627\u064B \u0641\u0627\u06CC\u0644 \u0646\u0635\u0628\u06CC \u0631\u0627 \u0628\u0647 Release \u0627\u0636\u0627\u0641\u0647 \u0641\u0631\u0645\u0627\u06CC\u06CC\u062F."
+      });
     }
     const updatesDir = getUpdatesDir();
     const targetFileName = "Dubbing-Vidans-Setup.exe";

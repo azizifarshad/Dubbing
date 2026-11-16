@@ -3601,7 +3601,10 @@ app.post('/api/app-update/download', async (_req: Request, res: Response) => {
   try {
     const updateInfo = appUpdateState.updateInfo;
     if (!updateInfo || !updateInfo.downloadUrl) {
-      return res.status(400).json({ error: 'No update available to download.' });
+      return res.status(400).json({
+        error: 'No update binary available for download in this release.',
+        errorMessageFa: 'فایل نصبی (.exe) در بخش Releases این نسخه در گیت‌هاب آپلود نشده است. لطفاً فایل نصبی را به Release اضافه فرمایید.',
+      });
     }
 
     const updatesDir = getUpdatesDir();
