@@ -46,6 +46,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 ; Shared licensing directories
 Name: "{commonappdata}\DubbingVidans"
 Name: "{commonappdata}\DubbingVidans\models"
+Name: "{app}\updates"; Permissions: users-modify
 
 [Files]
 ; Main launcher

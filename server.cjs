@@ -73160,95 +73160,119 @@ app.get("/api/app-update/download-asset/:assetId", async (req, res) => {
     }
   }
 });
-app.post("/api/app-update/download", async (_req, res) => {
-  const updateInfo = appUpdateState.updateInfo;
-  if (!updateInfo || !updateInfo.downloadUrl) {
-    return res.status(400).json({ error: "No update available to download." });
-  }
-  const updatesDir = import_path3.default.join(appDir, "updates");
-  if (!import_fs4.default.existsSync(updatesDir)) {
-    import_fs4.default.mkdirSync(updatesDir, { recursive: true });
-  }
-  const targetFileName = "Dubbing-Vidans-Setup.exe";
-  const targetPath = import_path3.default.join(updatesDir, targetFileName);
-  appUpdateState.progress = {
-    status: "downloading",
-    progressPercent: 0,
-    downloadedBytes: 0,
-    totalBytes: updateInfo.sizeBytes || 0
-  };
-  (async () => {
+function getUpdatesDir() {
+  const candidates = [
+    import_path3.default.join(import_os2.default.tmpdir(), "DubbingVidansUpdates"),
+    import_path3.default.join(process.env.LOCALAPPDATA || import_os2.default.tmpdir(), "DubbingVidans", "updates"),
+    import_path3.default.join(process.env.ProgramData || "C:\\ProgramData", "DubbingVidans", "updates"),
+    import_path3.default.join(appDir, "updates")
+  ];
+  for (const dir of candidates) {
     try {
-      let effectiveDownloadUrl = updateInfo.downloadUrl;
-      if (effectiveDownloadUrl.startsWith("/")) {
-        effectiveDownloadUrl = `http://127.0.0.1:${PORT}${effectiveDownloadUrl}`;
+      if (!import_fs4.default.existsSync(dir)) {
+        import_fs4.default.mkdirSync(dir, { recursive: true });
       }
-      console.log(`[App Update Download] Fetching installer from: ${effectiveDownloadUrl}`);
-      const downloadRes = await fetch(effectiveDownloadUrl);
-      if (!downloadRes.ok) {
-        throw new Error(`Download failed with status ${downloadRes.status}`);
-      }
-      const totalLen = parseInt(downloadRes.headers.get("content-length") || `${updateInfo.sizeBytes || 0}`, 10);
-      appUpdateState.progress.totalBytes = totalLen;
-      const fileStream = import_fs4.default.createWriteStream(targetPath);
-      const sha256Hasher = import_crypto3.default.createHash("sha256");
-      let receivedBytes = 0;
-      if (!downloadRes.body) {
-        throw new Error("Response body stream is empty");
-      }
-      const reader = downloadRes.body.getReader();
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (value) {
-          const buf = Buffer.from(value);
-          fileStream.write(buf);
-          sha256Hasher.update(buf);
-          receivedBytes += buf.length;
-          appUpdateState.progress.downloadedBytes = receivedBytes;
-          if (totalLen > 0) {
-            appUpdateState.progress.progressPercent = Math.min(100, Math.round(receivedBytes / totalLen * 100));
+      const testFile = import_path3.default.join(dir, `.test_write_${Date.now()}`);
+      import_fs4.default.writeFileSync(testFile, "1");
+      import_fs4.default.unlinkSync(testFile);
+      return dir;
+    } catch {
+    }
+  }
+  return import_os2.default.tmpdir();
+}
+app.post("/api/app-update/download", async (_req, res) => {
+  try {
+    const updateInfo = appUpdateState.updateInfo;
+    if (!updateInfo || !updateInfo.downloadUrl) {
+      return res.status(400).json({ error: "No update available to download." });
+    }
+    const updatesDir = getUpdatesDir();
+    const targetFileName = "Dubbing-Vidans-Setup.exe";
+    const targetPath = import_path3.default.join(updatesDir, targetFileName);
+    appUpdateState.downloadedFilePath = targetPath;
+    appUpdateState.progress = {
+      status: "downloading",
+      progressPercent: 0,
+      downloadedBytes: 0,
+      totalBytes: updateInfo.sizeBytes || 0
+    };
+    res.json({ success: true, message: "Download initiated." });
+    (async () => {
+      try {
+        let effectiveDownloadUrl = updateInfo.downloadUrl;
+        if (effectiveDownloadUrl.startsWith("/")) {
+          effectiveDownloadUrl = `http://127.0.0.1:${PORT}${effectiveDownloadUrl}`;
+        }
+        console.log(`[App Update Download] Fetching installer from: ${effectiveDownloadUrl} -> Target: ${targetPath}`);
+        const downloadRes = await fetch(effectiveDownloadUrl);
+        if (!downloadRes.ok) {
+          throw new Error(`Download failed with status ${downloadRes.status}`);
+        }
+        const totalLen = parseInt(downloadRes.headers.get("content-length") || `${updateInfo.sizeBytes || 0}`, 10);
+        appUpdateState.progress.totalBytes = totalLen;
+        const fileStream = import_fs4.default.createWriteStream(targetPath);
+        const sha256Hasher = import_crypto3.default.createHash("sha256");
+        let receivedBytes = 0;
+        if (!downloadRes.body) {
+          throw new Error("Response body stream is empty");
+        }
+        const reader = downloadRes.body.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (value) {
+            const buf = Buffer.from(value);
+            fileStream.write(buf);
+            sha256Hasher.update(buf);
+            receivedBytes += buf.length;
+            appUpdateState.progress.downloadedBytes = receivedBytes;
+            if (totalLen > 0) {
+              appUpdateState.progress.progressPercent = Math.min(100, Math.round(receivedBytes / totalLen * 100));
+            }
           }
         }
-      }
-      fileStream.end();
-      await new Promise((resolve, reject) => {
-        fileStream.on("finish", () => resolve());
-        fileStream.on("error", reject);
-      });
-      appUpdateState.progress.status = "verifying";
-      const downloadedSha256 = sha256Hasher.digest("hex");
-      console.log(`[App Update Download] Completed. Computed SHA-256: ${downloadedSha256}`);
-      if (updateInfo.sha256 && updateInfo.sha256.toLowerCase() !== downloadedSha256.toLowerCase()) {
-        try {
-          import_fs4.default.unlinkSync(targetPath);
-        } catch {
+        fileStream.end();
+        await new Promise((resolve, reject) => {
+          fileStream.on("finish", () => resolve());
+          fileStream.on("error", reject);
+        });
+        appUpdateState.progress.status = "verifying";
+        const downloadedSha256 = sha256Hasher.digest("hex");
+        console.log(`[App Update Download] Completed. Computed SHA-256: ${downloadedSha256}`);
+        if (updateInfo.sha256 && updateInfo.sha256.toLowerCase() !== downloadedSha256.toLowerCase()) {
+          try {
+            import_fs4.default.unlinkSync(targetPath);
+          } catch {
+          }
+          throw new Error(`Checksum mismatch! Expected: ${updateInfo.sha256}, Got: ${downloadedSha256}`);
         }
-        throw new Error(`Checksum mismatch! Expected: ${updateInfo.sha256}, Got: ${downloadedSha256}`);
+        appUpdateState.downloadedFilePath = targetPath;
+        appUpdateState.progress = {
+          status: "ready_to_install",
+          progressPercent: 100,
+          downloadedBytes: receivedBytes,
+          totalBytes: receivedBytes
+        };
+        console.log("[App Update] Ready to install update.");
+      } catch (dlErr) {
+        console.error("[App Update Download Error]:", dlErr.message);
+        const classified = classifyUpdateError(dlErr, updateInfo.downloadUrl);
+        appUpdateState.progress = {
+          status: "error",
+          progressPercent: 0,
+          downloadedBytes: 0,
+          totalBytes: 0,
+          errorMessage: classified.messageFa,
+          errorMessageFa: classified.messageFa,
+          technicalDetails: classified.technicalDetails
+        };
       }
-      appUpdateState.downloadedFilePath = targetPath;
-      appUpdateState.progress = {
-        status: "ready_to_install",
-        progressPercent: 100,
-        downloadedBytes: receivedBytes,
-        totalBytes: receivedBytes
-      };
-      console.log("[App Update] Ready to install update.");
-    } catch (dlErr) {
-      console.error("[App Update Download Error]:", dlErr.message);
-      const classified = classifyUpdateError(dlErr, updateInfo.downloadUrl);
-      appUpdateState.progress = {
-        status: "error",
-        progressPercent: 0,
-        downloadedBytes: 0,
-        totalBytes: 0,
-        errorMessage: classified.messageFa,
-        errorMessageFa: classified.messageFa,
-        technicalDetails: classified.technicalDetails
-      };
-    }
-  })();
-  return res.json({ success: true, message: "Download initiated." });
+    })();
+  } catch (err) {
+    console.error("[App Update Download Route Error]:", err.message);
+    return res.status(500).json({ error: err.message, errorMessageFa: "\u062E\u0637\u0627 \u062F\u0631 \u062F\u0633\u062A\u0631\u0633\u06CC \u0628\u0647 \u067E\u0648\u0634\u0647 \u062F\u0631\u06CC\u0627\u0641\u062A \u0628\u0647\u200C\u0631\u0648\u0632\u0631\u0633\u0627\u0646\u06CC." });
+  }
 });
 app.post("/api/app-update/install", async (_req, res) => {
   const filePath = appUpdateState.downloadedFilePath;

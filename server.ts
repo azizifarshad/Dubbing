@@ -3574,35 +3574,59 @@ app.get('/api/app-update/download-asset/:assetId', async (req: Request, res: Res
   }
 });
 
-app.post('/api/app-update/download', async (_req: Request, res: Response) => {
-  const updateInfo = appUpdateState.updateInfo;
-  if (!updateInfo || !updateInfo.downloadUrl) {
-    return res.status(400).json({ error: 'No update available to download.' });
-  }
-
-  const updatesDir = path.join(appDir, 'updates');
-  if (!fs.existsSync(updatesDir)) {
-    fs.mkdirSync(updatesDir, { recursive: true });
-  }
-
-  const targetFileName = 'Dubbing-Vidans-Setup.exe';
-  const targetPath = path.join(updatesDir, targetFileName);
-
-  appUpdateState.progress = {
-    status: 'downloading',
-    progressPercent: 0,
-    downloadedBytes: 0,
-    totalBytes: updateInfo.sizeBytes || 0,
-  };
-
-  // Run download in background
-  (async () => {
+function getUpdatesDir(): string {
+  const candidates = [
+    path.join(os.tmpdir(), 'DubbingVidansUpdates'),
+    path.join(process.env.LOCALAPPDATA || os.tmpdir(), 'DubbingVidans', 'updates'),
+    path.join(process.env.ProgramData || 'C:\\ProgramData', 'DubbingVidans', 'updates'),
+    path.join(appDir, 'updates'),
+  ];
+  for (const dir of candidates) {
     try {
-      let effectiveDownloadUrl = updateInfo.downloadUrl;
-      if (effectiveDownloadUrl.startsWith('/')) {
-        effectiveDownloadUrl = `http://127.0.0.1:${PORT}${effectiveDownloadUrl}`;
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
       }
-      console.log(`[App Update Download] Fetching installer from: ${effectiveDownloadUrl}`);
+      const testFile = path.join(dir, `.test_write_${Date.now()}`);
+      fs.writeFileSync(testFile, '1');
+      fs.unlinkSync(testFile);
+      return dir;
+    } catch {
+      // Continue to next candidate
+    }
+  }
+  return os.tmpdir();
+}
+
+app.post('/api/app-update/download', async (_req: Request, res: Response) => {
+  try {
+    const updateInfo = appUpdateState.updateInfo;
+    if (!updateInfo || !updateInfo.downloadUrl) {
+      return res.status(400).json({ error: 'No update available to download.' });
+    }
+
+    const updatesDir = getUpdatesDir();
+    const targetFileName = 'Dubbing-Vidans-Setup.exe';
+    const targetPath = path.join(updatesDir, targetFileName);
+
+    appUpdateState.downloadedFilePath = targetPath;
+    appUpdateState.progress = {
+      status: 'downloading',
+      progressPercent: 0,
+      downloadedBytes: 0,
+      totalBytes: updateInfo.sizeBytes || 0,
+    };
+
+    // Immediately respond to caller so UI transitions smoothly to downloading state
+    res.json({ success: true, message: 'Download initiated.' });
+
+    // Run download in background
+    (async () => {
+      try {
+        let effectiveDownloadUrl = updateInfo.downloadUrl;
+        if (effectiveDownloadUrl.startsWith('/')) {
+          effectiveDownloadUrl = `http://127.0.0.1:${PORT}${effectiveDownloadUrl}`;
+        }
+        console.log(`[App Update Download] Fetching installer from: ${effectiveDownloadUrl} -> Target: ${targetPath}`);
       const downloadRes = await fetch(effectiveDownloadUrl);
       if (!downloadRes.ok) {
         throw new Error(`Download failed with status ${downloadRes.status}`);
@@ -3674,8 +3698,10 @@ app.post('/api/app-update/download', async (_req: Request, res: Response) => {
       };
     }
   })();
-
-  return res.json({ success: true, message: 'Download initiated.' });
+  } catch (err: any) {
+    console.error('[App Update Download Route Error]:', err.message);
+    return res.status(500).json({ error: err.message, errorMessageFa: 'خطا در دسترسی به پوشه دریافت به‌روزرسانی.' });
+  }
 });
 
 app.post('/api/app-update/install', async (_req: Request, res: Response) => {
