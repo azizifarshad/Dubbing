@@ -72681,7 +72681,7 @@ STRICT CONSTRAINTS & RULES:
     return res.status(500).json({ success: false, error: err.message || "\u062E\u0637\u0627 \u062F\u0631 \u0627\u062C\u0631\u0627\u06CC \u0633\u06CC\u0646\u06A9 \u0647\u0648\u0634\u0645\u0646\u062F \u062E\u0637 \u0632\u0645\u0627\u0646" });
   }
 });
-var CURRENT_APP_VERSION = "1.0.2";
+var CURRENT_APP_VERSION = "1.0.3";
 var GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || "azizifarshad";
 var GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || "Dubbing";
 var GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;

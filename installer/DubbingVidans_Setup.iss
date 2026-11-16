@@ -1,7 +1,7 @@
 ; Inno Setup Script: Dubbing Vidans
 
 #define MyAppName "Dubbing Vidans"
-#define MyAppVersion "1.0.2"
+#define MyAppVersion "1.0.3"
 #define MyAppPublisher "Vidans Studio"
 #define MyAppExeName "DubbingVidans.exe"
 #define MyAppURL "https://github.com/azizifarshad/Dubbing"
