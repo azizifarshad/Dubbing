@@ -2988,7 +2988,7 @@ STRICT CONSTRAINTS & RULES:
 // ==============================================================================
 const CURRENT_APP_VERSION = '1.0.3';
 const GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || 'azizifarshad';
-const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'Dubbing';
+const GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || 'Dubbing-Vidans-Releases';
 const GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;
 // Optional custom gateway URL (empty by default; if provided, it will be queried as alternative authority)
 const UPDATE_SERVER_URL = (process.env.UPDATE_SERVER_URL || '').replace(/localhost:4000\/?$/i, '').trim();

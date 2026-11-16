@@ -4,7 +4,7 @@
 #define MyAppVersion "1.0.3"
 #define MyAppPublisher "Vidans Studio"
 #define MyAppExeName "DubbingVidans.exe"
-#define MyAppURL "https://github.com/azizifarshad/Dubbing"
+#define MyAppURL "https://github.com/azizifarshad/Dubbing-Vidans-Releases"
 
 [Setup]
 AppId={{5E973349-BDC5-44CA-835A-83B8122DE13B}}

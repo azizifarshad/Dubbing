@@ -72683,7 +72683,7 @@ STRICT CONSTRAINTS & RULES:
 });
 var CURRENT_APP_VERSION = "1.0.3";
 var GITHUB_REPO_OWNER = process.env.GITHUB_REPO_OWNER || "azizifarshad";
-var GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || "Dubbing";
+var GITHUB_REPO_NAME = process.env.GITHUB_REPO_NAME || "Dubbing-Vidans-Releases";
 var GITHUB_RELEASES_API = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/releases`;
 var UPDATE_SERVER_URL = (process.env.UPDATE_SERVER_URL || "").replace(/localhost:4000\/?$/i, "").trim();
 var updateCheckCache = null;
