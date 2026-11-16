@@ -3686,6 +3686,20 @@ app.post('/api/app-update/download', async (_req: Request, res: Response) => {
         downloadedBytes: receivedBytes,
         totalBytes: receivedBytes,
       };
+
+      // Also copy to user's Desktop folder "Vidans Dubbing v<version>" for direct access
+      try {
+        const desktopFolder = path.join(os.homedir(), 'Desktop', `Vidans Dubbing v${updateInfo.latestVersion || '1.0.3'}`);
+        if (!fs.existsSync(desktopFolder)) {
+          fs.mkdirSync(desktopFolder, { recursive: true });
+        }
+        const desktopTarget = path.join(desktopFolder, targetFileName);
+        fs.copyFileSync(targetPath, desktopTarget);
+        console.log(`[App Update Download] Successfully copied installer to Desktop folder: ${desktopTarget}`);
+      } catch (dErr: any) {
+        console.warn('[App Update Download] Note: Could not copy to Desktop folder:', dErr.message);
+      }
+
       console.log('[App Update] Ready to install update.');
     } catch (dlErr: any) {
       console.error('[App Update Download Error]:', dlErr.message);

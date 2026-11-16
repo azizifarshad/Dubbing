@@ -368,10 +368,13 @@ export const UpdateModal: React.FC<UpdateModalProps> = ({
 
               {/* Ready to install */}
               {progress.status === 'ready_to_install' && (
-                <div className="p-3 bg-emerald-500/20 border border-emerald-500/40 rounded-lg text-emerald-300 text-xs flex items-center justify-between">
+                <div className="p-3.5 bg-emerald-500/20 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs flex flex-col gap-2">
                   <div className="flex items-center gap-2">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                    <span>فایل نصب با موفقیت دریافت و یکپارچگی فایل تایید شد.</span>
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span className="font-bold text-emerald-200">فایل نصب با موفقیت دانلود و تایید شد!</span>
+                  </div>
+                  <div className="text-[11px] text-slate-300 leading-relaxed pr-6">
+                    فایل نصبی در پوشه <span className="font-mono text-emerald-300 font-bold bg-black/40 px-1.5 py-0.5 rounded">Vidans Dubbing v{updateInfo.latestVersion || '1.0.3'}</span> روی دسکتاپ شما ذخیره شد. می‌توانید از دکمه زیر برای نصب خودکار استفاده کنید یا برنامه را بسته و فایل را مستقیماً از روی دسکتاپ اجرا نمایید.
                   </div>
                 </div>
               )}
