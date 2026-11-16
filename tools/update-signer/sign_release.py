@@ -141,16 +141,28 @@ def sign_release_manifest(installer_path: str, version: str, channel: str = "sta
 
 def main():
     if len(sys.argv) < 3:
-        print("Usage: python sign_release.py <path_to_installer> <version> [channel] [out_dir]")
+        print("Usage: python sign_release.py <path_to_installer> <version> [channel] [out_dir] [notes_en] [notes_fa]")
         sys.exit(1)
 
     installer_path = sys.argv[1]
     version = sys.argv[2]
     channel = sys.argv[3] if len(sys.argv) > 3 else "stable"
     out_dir = sys.argv[4] if len(sys.argv) > 4 else os.path.dirname(installer_path)
+    notes_en = sys.argv[5] if len(sys.argv) > 5 else ""
+    notes_fa = sys.argv[6] if len(sys.argv) > 6 else ""
+
+    # Check for optional notes files in out_dir
+    en_file = os.path.join(out_dir, "notes_en.txt")
+    fa_file = os.path.join(out_dir, "notes_fa.txt")
+    if not notes_en and os.path.exists(en_file):
+        with open(en_file, "r", encoding="utf-8") as f:
+            notes_en = f.read().strip()
+    if not notes_fa and os.path.exists(fa_file):
+        with open(fa_file, "r", encoding="utf-8") as f:
+            notes_fa = f.read().strip()
 
     print(f"[*] Computing SHA-256 and signing release: {installer_path} (Version: {version}, Channel: {channel})...")
-    manifest, sha256_hash = sign_release_manifest(installer_path, version, channel)
+    manifest, sha256_hash = sign_release_manifest(installer_path, version, channel, notes_en=notes_en, notes_fa=notes_fa)
 
     os.makedirs(out_dir, exist_ok=True)
     manifest_path = os.path.join(out_dir, "update-manifest.json")
